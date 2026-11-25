@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import type { DetectedExtension } from '@bitchord/shared/bridge';
+import { getBridge } from '@/extension/bridge';
 import { extensionQueryKey, useExtension } from '@/extension/useExtension';
 import { useYtAuth, ytAuthSnapshot } from '@/extension/useYtAuth';
 import { getProxyUrl, useProxyUrl } from '@/lib/iosProxy';
@@ -171,7 +172,7 @@ export function prefetchPageData(pathname: string): void {
 /** True when YouTube requests are made as the user (the extension reports a chosen channel). */
 export function useSignedIn(): boolean {
   const auth = useYtAuth();
-  return auth.state === 'ready' && auth.auth.signedIn;
+  return !!getBridge() && auth.state === 'ready' && auth.auth.signedIn;
 }
 
 type LibraryPageParam = (() => Promise<Paged<BrowsePage>>) | null;

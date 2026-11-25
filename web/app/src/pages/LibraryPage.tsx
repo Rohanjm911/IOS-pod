@@ -72,8 +72,8 @@ export default function LibraryPage() {
       <>
         <PageHeader title={title} />
         <EmptyState
-          title="Sign in to see your library"
-          detail="BitChord uses the YouTube Music account this browser is signed in to. Sign in on music.youtube.com, then come back."
+          title={title}
+          detail={`Personal ${title} syncs with your Google account when the BitChord desktop extension is active. Your recently played and starred tracks are saved directly in this browser.`}
         />
       </>
     );

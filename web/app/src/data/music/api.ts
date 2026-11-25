@@ -1,4 +1,5 @@
 import type { YTMusic, YTNodes } from 'youtubei.js/web';
+import { getBridge } from '@/extension/bridge';
 import type { Candidate } from '@/playback/queue/builder';
 import { getBrowseInnertube, getMusicClient, getSignedInnertube } from '@/playback/youtube/innertube';
 import { isExactArtistMatch, normalizedArtistName } from '@/lib/artistCredits';
@@ -234,43 +235,60 @@ function runsText(node: unknown): string {
 
 /** One library page, a page of it at a time: grids continue as grids, song lists as song lists. */
 export async function fetchLibrary(section: LibrarySection): Promise<Paged<BrowsePage>> {
-  const yt = await getSignedInnertube();
-  const { YTNodes } = await import('youtubei.js/web');
   const { title, browseId } = LIBRARY_SECTIONS[section];
-  const response = await yt.actions.execute('/browse', { browseId, client: 'YTMUSIC', parse: true });
-  const memo = response.contents_memo;
-  const grids = memo?.getType(YTNodes.Grid) ?? [];
-  const lists = [...(memo?.getType(YTNodes.MusicShelf) ?? []), ...(memo?.getType(YTNodes.MusicPlaylistShelf) ?? [])];
-  const carousels = memo?.getType(YTNodes.MusicCarouselShelf) ?? [];
-  const page = mapBrowse({ sections: [...grids, ...lists, ...carousels] }, title);
-  // History is several lists ("Today", "Yesterday"); the rest is one grid or one list.
-  const token = (grids[0]?.continuation ?? (lists.length === 1 ? lists[0]?.continuation : null)) || null;
-  return { data: { ...page, title }, next: token ? () => orEnd(() => libraryContinuation(token, title), emptyPage(title)) : null };
+  if (!getBridge()) {
+    return { data: emptyPage(title), next: null };
+  }
+  try {
+    const yt = await getSignedInnertube();
+    const { YTNodes } = await import('youtubei.js/web');
+    const response = await yt.actions.execute('/browse', { browseId, client: 'YTMUSIC', parse: true });
+    const memo = response.contents_memo;
+    const grids = memo?.getType(YTNodes.Grid) ?? [];
+    const lists = [...(memo?.getType(YTNodes.MusicShelf) ?? []), ...(memo?.getType(YTNodes.MusicPlaylistShelf) ?? [])];
+    const carousels = memo?.getType(YTNodes.MusicCarouselShelf) ?? [];
+    const page = mapBrowse({ sections: [...grids, ...lists, ...carousels] }, title);
+    // History is several lists ("Today", "Yesterday"); the rest is one grid or one list.
+    const token = (grids[0]?.continuation ?? (lists.length === 1 ? lists[0]?.continuation : null)) || null;
+    return { data: { ...page, title }, next: token ? () => orEnd(() => libraryContinuation(token, title), emptyPage(title)) : null };
+  } catch {
+    return { data: emptyPage(title), next: null };
+  }
 }
 
 const emptyPage = (title: string): BrowsePage => ({ title, shelves: [], grid: [], tracks: [] });
 
 async function libraryContinuation(token: string, title: string): Promise<Paged<BrowsePage>> {
-  const yt = await getSignedInnertube();
-  const response = await yt.actions.execute('/browse', { continuation: token, client: 'YTMUSIC', parse: true });
-  const contents = response.continuation_contents as unknown as
-    | { type: string; items?: unknown[]; contents?: unknown[]; continuation?: string | null }
-    | undefined;
-  const section =
-    contents?.type === 'GridContinuation'
-      ? { type: 'Grid', items: contents.items ?? [] }
-      : { type: 'MusicShelf', contents: contents?.contents ?? [] };
-  const next = contents?.continuation || null;
-  return {
-    data: mapBrowse({ sections: [section] }, title),
-    next: next ? () => orEnd(() => libraryContinuation(next, title), emptyPage(title)) : null,
-  };
+  if (!getBridge()) return { data: emptyPage(title), next: null };
+  try {
+    const yt = await getSignedInnertube();
+    const response = await yt.actions.execute('/browse', { continuation: token, client: 'YTMUSIC', parse: true });
+    const contents = response.continuation_contents as unknown as
+      | { type: string; items?: unknown[]; contents?: unknown[]; continuation?: string | null }
+      | undefined;
+    const section =
+      contents?.type === 'GridContinuation'
+        ? { type: 'Grid', items: contents.items ?? [] }
+        : { type: 'MusicShelf', contents: contents?.contents ?? [] };
+    const next = contents?.continuation || null;
+    return {
+      data: mapBrowse({ sections: [section] }, title),
+      next: next ? () => orEnd(() => libraryContinuation(next, title), emptyPage(title)) : null,
+    };
+  } catch {
+    return { data: emptyPage(title), next: null };
+  }
 }
 
 /** The user's playlists for the sidebar, in YouTube's order (most recent activity first). */
 export async function fetchLibraryPlaylists(): Promise<MusicItem[]> {
-  const { data } = await fetchLibrary('playlists');
-  return data.grid.filter((item) => item.kind === 'playlist');
+  if (!getBridge()) return [];
+  try {
+    const { data } = await fetchLibrary('playlists');
+    return data.grid.filter((item) => item.kind === 'playlist');
+  } catch {
+    return [];
+  }
 }
 
 export type LikeStatus = 'LIKE' | 'DISLIKE' | 'INDIFFERENT';
