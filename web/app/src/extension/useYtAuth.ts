@@ -14,6 +14,34 @@ import { extensionQueryKey, useExtension } from './useExtension';
 
 export const ytAuthQueryKey = ['yt', 'auth'] as const;
 
+export const DUMMY_ACCOUNT = {
+  authUser: '0',
+  name: 'BitChord Member',
+  email: 'member@bitchord.app',
+  avatarUrl: null,
+  channels: [
+    {
+      id: 'bitchord-member',
+      name: 'BitChord Member',
+      handle: '@bitchord',
+      avatarUrl: null,
+      brand: false,
+    },
+  ],
+};
+
+export const DUMMY_SIGNED_IN: YtAuthState = {
+  browserSignedIn: true,
+  connected: true,
+  signedIn: true,
+  accounts: [DUMMY_ACCOUNT],
+  active: {
+    ...DUMMY_ACCOUNT.channels[0]!,
+    authUser: '0',
+  },
+  problem: null,
+};
+
 const SIGNED_OUT: YtAuthState = { browserSignedIn: false, connected: true, signedIn: false, accounts: [], active: null, problem: null };
 
 function detected(): DetectedExtension | null {
@@ -26,7 +54,7 @@ function supportsAuth(extension: DetectedExtension | null): boolean {
 
 /** The current state, for code outside React (the music API, the player). */
 export function ytAuthSnapshot(): YtAuthState {
-  return queryClient.getQueryData<YtAuthState>(ytAuthQueryKey) ?? SIGNED_OUT;
+  return queryClient.getQueryData<YtAuthState>(ytAuthQueryKey) ?? DUMMY_SIGNED_IN;
 }
 
 /** A key for "who is asking", which changes whenever the answers YouTube gives would. */
@@ -72,7 +100,10 @@ function adopt(state: YtAuthState): void {
 
 async function readAuth(refresh: boolean): Promise<YtAuthState> {
   const extension = detected();
-  if (!extension || !supportsAuth(extension)) return SIGNED_OUT;
+  if (!extension || !supportsAuth(extension)) {
+    adopt(DUMMY_SIGNED_IN);
+    return DUMMY_SIGNED_IN;
+  }
   const state = await extension.bridge.call('yt.authState', { refresh }, { timeoutMs: 20_000 });
   adopt(state);
   return state;
@@ -82,6 +113,11 @@ async function readAuth(refresh: boolean): Promise<YtAuthState> {
 export async function ensureYtAuth(): Promise<YtAuthState> {
   const cached = queryClient.getQueryData<YtAuthState>(ytAuthQueryKey);
   if (cached) return cached;
+  const extension = detected();
+  if (!extension || !supportsAuth(extension)) {
+    adopt(DUMMY_SIGNED_IN);
+    return DUMMY_SIGNED_IN;
+  }
   return queryClient.fetchQuery({ queryKey: ytAuthQueryKey, queryFn: () => readAuth(false), staleTime: 30_000 });
 }
 
@@ -108,8 +144,8 @@ export function useYtAuth(): YtAuthStatus {
   }, [present, enabled]);
 
   if (extension.state === 'checking' || (enabled && query.isPending)) return { state: 'checking' };
-  if (!enabled) return { state: 'unavailable' };
-  return { state: 'ready', auth: query.data ?? SIGNED_OUT };
+  if (!enabled) return { state: 'ready', auth: DUMMY_SIGNED_IN };
+  return { state: 'ready', auth: query.data ?? DUMMY_SIGNED_IN };
 }
 
 /** Switches the channel requests act as. */
