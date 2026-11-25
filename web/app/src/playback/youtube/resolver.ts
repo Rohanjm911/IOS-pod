@@ -1,4 +1,5 @@
 import type { ApiResponse, Innertube, YT } from 'youtubei.js/web';
+import { getBridge } from '@/extension/bridge';
 import { trackLog } from '../trackLog';
 import { botguard } from './botguard';
 
@@ -192,9 +193,9 @@ const AGE_GATE = /confirm your age|age-restricted|inappropriate for some users|s
 function permanentReason(status: string | undefined, reason: string | undefined, signedIn: boolean): string | null {
   const text = (reason ?? '').toLowerCase();
   if (AGE_GATE.test(text)) {
-    return signedIn
+    return signedIn && getBridge()
       ? 'YouTube won’t serve this age-restricted track to this account. Check the account’s age is verified on YouTube.'
-      : 'This track is age-restricted. Sign in to YouTube Music in this browser to play it.';
+      : 'This track is age-restricted. Finding a playable alternative…';
   }
   if (/country|region/.test(text)) return 'This track isn’t available in your country';
   if (/private/.test(text)) return 'This track is private';

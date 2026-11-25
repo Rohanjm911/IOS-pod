@@ -230,10 +230,9 @@ export class YouTubeEngine {
         try {
           resolved = await timed('player request', videoId, () => resolvePlayer(yt, videoId, skip, signed));
         } catch (error) {
-          // An age gate is a verdict on the visitor, not the track: ask again
-          // as the signed-in user, through the extension (prompt §5.3).
-          if (error instanceof UnplayableError && error.ageGated && !signed && ytAuthSnapshot().signedIn) {
-            trackLog.i('age-restricted; asking again signed in', videoId);
+          // An age gate is a verdict on the visitor: if we have the desktop extension with cookies, ask signed in.
+          if (error instanceof UnplayableError && error.ageGated && !signed && getBridge() && ytAuthSnapshot().signedIn) {
+            trackLog.i('age-restricted; asking again signed in via extension', videoId);
             yt = await timed('signed-in InnerTube session', videoId, getSignedInnertube);
             signed = true;
             skip.clear();
@@ -245,7 +244,7 @@ export class YouTubeEngine {
           // Find an alternative playable song/audio release (official topic/audio cut) so songs play seamlessly without setbacks.
           if (error instanceof UnplayableError) {
             trackLog.i(`track ${videoId} is unplayable (${error.message}); finding playable audio fallback`, videoId);
-            const alternative = await this.findPlayableAlternative(yt, videoId, hint, skip);
+            const alternative = await this.findPlayableAlternative(videoId, hint);
             if (alternative) {
               this.checkCurrent(generation);
               try {
@@ -295,35 +294,45 @@ export class YouTubeEngine {
   }
 
   private async findPlayableAlternative(
-    yt: Innertube,
     failedVideoId: string,
     hint?: TrackLoadHint,
-    skipClients: ReadonlySet<PlayerClientName> = new Set(),
   ): Promise<{ videoId: string; resolved: ResolvedPlayer } | null> {
     try {
-      let query = hint?.title ? `${hint.title} ${hint.artist ?? ''}`.trim() : null;
-      if (!query) {
-        const basic = await yt.getBasicInfo(failedVideoId).catch(() => null);
+      const cleanYt = this.yt ?? (await getInnertube());
+      const queriesToTry: string[] = [];
+      if (hint?.title) {
+        if (hint.artist) queriesToTry.push(`${hint.title} ${hint.artist}`.trim());
+        queriesToTry.push(hint.title.trim());
+      } else {
+        const basic = await cleanYt.getBasicInfo(failedVideoId).catch(() => null);
         const title = basic?.basic_info?.title;
         const author = basic?.basic_info?.author;
-        if (title) query = `${title} ${author ?? ''}`.trim();
+        if (title) {
+          if (author) queriesToTry.push(`${title} ${author}`.trim());
+          queriesToTry.push(title.trim());
+        }
       }
-      if (!query) return null;
+      if (!queriesToTry.length) return null;
 
       const { searchSongs, searchMainVideos } = await import('@/data/music/api');
-      let candidates = await searchSongs(query).catch(() => []);
-      if (!candidates.length) {
-        candidates = await searchMainVideos(query).catch(() => []);
-      }
+      const seenIds = new Set<string>([failedVideoId]);
 
-      for (const item of candidates) {
-        if (!item.videoId || item.videoId === failedVideoId) continue;
-        try {
-          const resolved = await resolvePlayer(yt, item.videoId, skipClients, false);
-          trackLog.i(`resolved playable alternative for ${failedVideoId}: ${item.videoId} ("${item.title}")`, failedVideoId);
-          return { videoId: item.videoId, resolved };
-        } catch {
-          // Candidate failed or was also unplayable, continue trying next candidate
+      for (const query of queriesToTry) {
+        let candidates = await searchSongs(query).catch(() => []);
+        if (!candidates.length) {
+          candidates = await searchMainVideos(query).catch(() => []);
+        }
+
+        for (const item of candidates) {
+          if (!item.videoId || seenIds.has(item.videoId)) continue;
+          seenIds.add(item.videoId);
+          try {
+            const resolved = await resolvePlayer(cleanYt, item.videoId, new Set(), false);
+            trackLog.i(`resolved playable alternative for ${failedVideoId}: ${item.videoId} ("${item.title}")`, failedVideoId);
+            return { videoId: item.videoId, resolved };
+          } catch {
+            // Candidate failed or was also unplayable, continue trying next candidate
+          }
         }
       }
     } catch (err) {

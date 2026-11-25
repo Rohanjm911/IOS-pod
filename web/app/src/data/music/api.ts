@@ -93,39 +93,54 @@ export async function searchSongs(query: string): Promise<Track[]> {
 
 /** Main YouTube video search fallback when a song is not indexed on YouTube Music's Songs shelf. */
 export async function searchMainVideos(query: string): Promise<Track[]> {
-  const yt = await getBrowseInnertube();
-  const search = await yt.search(query, { type: 'video' });
-  const out: Track[] = [];
-  for (const item of search.videos) {
-    const v = item as unknown as {
-      video_id?: string;
-      is_live?: boolean;
-      is_upcoming?: boolean;
-      title?: { toString(): string } | string;
-      author?: string | { name?: string; id?: string };
-      duration?: { seconds?: number };
-      best_thumbnail?: { url?: string };
-      thumbnails?: { url?: string }[];
-    };
-    if (!v.video_id || v.is_live || v.is_upcoming) continue;
-    const rawAuthorName = typeof v.author === 'string' ? v.author : (v.author?.name ?? '');
-    const rawAuthor = rawAuthorName.replace(/\s*-\s*Topic$/i, '').trim();
-    const authorId = typeof v.author === 'object' && v.author ? (v.author.id ?? null) : null;
-    const durationSec = typeof v.duration?.seconds === 'number' && v.duration.seconds > 0 ? v.duration.seconds : null;
-    const thumb = v.best_thumbnail?.url ?? v.thumbnails?.[0]?.url ?? null;
-    out.push({
-      videoId: v.video_id,
-      title: v.title?.toString().trim() ?? '',
-      artists: rawAuthor ? [{ name: rawAuthor, id: authorId }] : [],
-      album: null,
-      durationSec,
-      explicit: false,
-      thumbnail: thumb,
-      index: null,
-      plays: null,
-    });
+  const yt = await getMusicClient();
+  try {
+    const search = await yt.music.search(query, { type: 'video' });
+    const shelf = search.videos ?? search.contents?.find((c) => c.type === 'MusicShelf');
+    const tracks = mapPlaylistTracks((shelf as { contents?: readonly unknown[] } | undefined)?.contents ?? []);
+    if (tracks.length) return tracks;
+  } catch {
+    // Fall back to general browse search
   }
-  return out;
+  const generalYt = await getBrowseInnertube();
+  try {
+    const search = await generalYt.search(query, { type: 'video' });
+    const out: Track[] = [];
+    for (const item of search.videos ?? []) {
+      const v = item as unknown as {
+        id?: string;
+        video_id?: string;
+        is_live?: boolean;
+        is_upcoming?: boolean;
+        title?: { toString(): string } | string;
+        author?: string | { name?: string; id?: string };
+        duration?: { seconds?: number };
+        best_thumbnail?: { url?: string };
+        thumbnails?: { url?: string }[];
+      };
+      const videoId = v.id ?? v.video_id;
+      if (!videoId || v.is_live || v.is_upcoming) continue;
+      const rawAuthorName = typeof v.author === 'string' ? v.author : (v.author?.name ?? '');
+      const rawAuthor = rawAuthorName.replace(/\s*-\s*Topic$/i, '').trim();
+      const authorId = typeof v.author === 'object' && v.author ? (v.author.id ?? null) : null;
+      const durationSec = typeof v.duration?.seconds === 'number' && v.duration.seconds > 0 ? v.duration.seconds : null;
+      const thumb = v.best_thumbnail?.url ?? v.thumbnails?.[0]?.url ?? null;
+      out.push({
+        videoId,
+        title: v.title?.toString().trim() ?? '',
+        artists: rawAuthor ? [{ name: rawAuthor, id: authorId }] : [],
+        album: null,
+        durationSec,
+        explicit: false,
+        thumbnail: thumb,
+        index: null,
+        plays: null,
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchSuggestions(input: string): Promise<Suggestions> {
