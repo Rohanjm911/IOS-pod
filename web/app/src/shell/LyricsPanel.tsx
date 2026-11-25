@@ -80,6 +80,64 @@ const FAR_LINES =
   ':not(.prev-2):not(.prev-3):not(.next-2):not(.next-3):not(.lyrics-gap) { opacity: 0.46; }';
 
 /**
+ * Apple Music-inspired fluid line transitions: active line gently scales up
+ * with a soft glow while inactive lines recede with subtle depth blur,
+ * clearing immediately on hover for tactile seek feedback.
+ */
+const LYRIC_ANIMATIONS = `
+  .lyrics-line {
+    transform-origin: left center;
+    transition:
+      transform 0.52s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.42s ease,
+      filter 0.45s ease,
+      text-shadow 0.45s ease !important;
+    will-change: transform, opacity;
+  }
+  .lyrics-line.active,
+  .lyrics-line.lyrics-activest {
+    transform: scale(1.035) translate3d(0, 0, 0);
+    filter: blur(0px);
+    text-shadow: 0 0 26px rgba(255, 255, 255, 0.3);
+  }
+  .lyrics-line.pre-active,
+  .lyrics-line.post-active-line,
+  .lyrics-line.next-active-line {
+    transform: scale(0.985) translate3d(0, 0, 0);
+    filter: blur(0.45px);
+  }
+  .lyrics-line.prev-2,
+  .lyrics-line.next-2 {
+    transform: scale(0.96) translate3d(0, 0, 0);
+    filter: blur(1px);
+  }
+  .lyrics-line:not(.active):not(.pre-active):not(.lyrics-activest):not(.post-active-line):not(.next-active-line):not(.prev-2):not(.next-2):not(.lyrics-gap) {
+    transform: scale(0.945) translate3d(0, 0, 0);
+    filter: blur(1.5px);
+  }
+  .lyrics-line:hover {
+    filter: blur(0px) !important;
+    opacity: 0.94 !important;
+    transform: scale(1.01) translate3d(0, 0, 0);
+  }
+  .lyrics-gap.active {
+    animation: bitchord-gap-pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes bitchord-gap-pulse {
+    0%, 100% { transform: scale(1); opacity: 0.85; }
+    50% { transform: scale(1.06); opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lyrics-line {
+      transition: opacity 0.2s ease !important;
+      transform: none !important;
+      filter: none !important;
+    }
+    .lyrics-gap.active { animation: none; }
+  }
+`;
+
+/**
  * The full-screen player's sizing (report §7): its line size, set on the host
  * by breakpoint, replaces all three of am-lyrics' container tiers, and the
  * current line sits a third of the way down. Scoped to `data-full`, so the
@@ -148,7 +206,7 @@ function LyricsView({ ttml, full }: { ttml: string; full: boolean }) {
       const root = el.shadowRoot;
       if (!root) return;
       const sheet = new CSSStyleSheet();
-      sheet.replaceSync(HIDE_FOOTER + FAR_LINES + FULL_SIZE);
+      sheet.replaceSync(HIDE_FOOTER + FAR_LINES + FULL_SIZE + LYRIC_ANIMATIONS);
       root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
       // The full-screen column fades its top edge, but am-lyrics' toolbar
       // (romanize, translate, download) sits at the top of the same scroller
@@ -249,8 +307,8 @@ function LyricsView({ ttml, full }: { ttml: string; full: boolean }) {
       ref={host}
       className={
         full
-          ? 'flex min-h-0 flex-1 [mask-image:linear-gradient(180deg,transparent,#000_var(--lyrics-top-fade,0px),#000_50%,transparent)]'
-          : 'flex min-h-0 flex-1'
+          ? 'flex min-h-0 flex-1 animate-[fade-in_360ms_ease-out] [mask-image:linear-gradient(180deg,transparent,#000_var(--lyrics-top-fade,0px),#000_50%,transparent)]'
+          : 'flex min-h-0 flex-1 animate-[fade-in_360ms_ease-out]'
       }
     />
   );
