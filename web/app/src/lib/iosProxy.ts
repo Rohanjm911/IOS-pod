@@ -27,10 +27,10 @@ function readStoredProxy(): string | null {
 }
 
 let customProxy: string | null = readStoredProxy() ?? normalizeProxyBase(config.ytProxyUrl);
-let builtinAvailable: boolean | null = customProxy ? null : typeof window === 'undefined' ? false : true;
+let builtinAvailable: boolean = true;
 
-function activeProxy(): string | null {
-  return customProxy ?? (builtinAvailable ? BUILTIN_PROXY_PATH : null);
+function activeProxy(): string {
+  return customProxy || BUILTIN_PROXY_PATH;
 }
 
 function notify() {
@@ -40,18 +40,17 @@ function notify() {
 /** Probes same-origin `/api/proxy?health=1` (Vercel Edge / local Vite) once when no custom proxy is saved. */
 function probeBuiltInProxy(): void {
   if (customProxy || typeof window === 'undefined' || typeof fetch === 'undefined') return;
-  void fetch(`${BUILTIN_PROXY_PATH}?health=1`, { signal: AbortSignal.timeout(3000) })
+  void fetch(`${BUILTIN_PROXY_PATH}?health=1`, { signal: AbortSignal.timeout(5000) })
     .then(async (res) => {
-      if (!res.ok) return false;
+      if (!res.ok) return;
       const data = (await res.json().catch(() => null)) as { ok?: boolean } | null;
-      return !!data?.ok;
-    })
-    .catch(() => false)
-    .then((ok) => {
-      if (builtinAvailable !== ok) {
-        builtinAvailable = ok;
+      if (data?.ok && !builtinAvailable) {
+        builtinAvailable = true;
         notify();
       }
+    })
+    .catch(() => {
+      // Keep builtin proxy active; never block the standalone web app
     });
 }
 
@@ -84,7 +83,7 @@ export function setProxyUrl(raw: string): string | null {
   }
   customProxy = normalized ?? (raw.trim() ? null : normalizeProxyBase(config.ytProxyUrl));
   if (!customProxy) {
-    builtinAvailable = null;
+    builtinAvailable = true;
     probeBuiltInProxy();
   }
   notify();

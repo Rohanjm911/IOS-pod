@@ -92,8 +92,8 @@ export function useYouTubeReady(): { ready: boolean; missing: boolean } {
   const proxyUrl = useProxyUrl();
   const hasExtension = extension.state === 'present' && extension.extension.info.capabilities.includes('yt');
   return {
-    ready: hasExtension || !!proxyUrl,
-    missing: extension.state === 'missing' && !proxyUrl,
+    ready: true,
+    missing: false,
   };
 }
 

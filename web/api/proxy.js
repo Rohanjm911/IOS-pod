@@ -48,7 +48,7 @@ function corsHeaders(request) {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET, POST, HEAD, OPTIONS',
     'Access-Control-Allow-Headers': '*',
-    'Access-Control-Expose-Headers': '*',
+    'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges, Content-Type, *',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
@@ -157,6 +157,17 @@ export default async function handler(request) {
   responseHeaders.delete('set-cookie');
   responseHeaders.delete('content-security-policy');
   responseHeaders.delete('x-frame-options');
+
+  if (request.headers.has('range') || upstream.status === 206) {
+    const buf = await upstream.arrayBuffer();
+    responseHeaders.set('content-length', String(buf.byteLength));
+    responseHeaders.set('accept-ranges', 'bytes');
+    return new Response(buf, {
+      status: upstream.status,
+      statusText: upstream.statusText,
+      headers: responseHeaders,
+    });
+  }
 
   return new Response(upstream.body, {
     status: upstream.status,

@@ -68,7 +68,7 @@ function localProxyPlugin(): Plugin {
         res.setHeader('Access-Control-Allow-Origin', origin);
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, HEAD, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', '*');
-        res.setHeader('Access-Control-Expose-Headers', '*');
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Content-Length, Accept-Ranges, Content-Type, *');
         res.setHeader('Vary', 'Origin');
       };
       setCors();
