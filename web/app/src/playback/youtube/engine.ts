@@ -232,13 +232,39 @@ export class YouTubeEngine {
         } catch (error) {
           // An age gate is a verdict on the visitor, not the track: ask again
           // as the signed-in user, through the extension (prompt §5.3).
-          if (!(error instanceof UnplayableError && error.ageGated) || signed || !ytAuthSnapshot().signedIn) throw error;
-          trackLog.i('age-restricted; asking again signed in', videoId);
-          yt = await timed('signed-in InnerTube session', videoId, getSignedInnertube);
-          signed = true;
-          skip.clear();
-          attempt = -1;
-          continue;
+          if (error instanceof UnplayableError && error.ageGated && !signed && ytAuthSnapshot().signedIn) {
+            trackLog.i('age-restricted; asking again signed in', videoId);
+            yt = await timed('signed-in InnerTube session', videoId, getSignedInnertube);
+            signed = true;
+            skip.clear();
+            attempt = -1;
+            continue;
+          }
+
+          // Fallback for age-restricted / unplayable tracks:
+          // Find an alternative playable song/audio release (official topic/audio cut) so songs play seamlessly without setbacks.
+          if (error instanceof UnplayableError && error.ageGated) {
+            trackLog.i(`track ${videoId} is age-restricted; finding playable audio fallback`, videoId);
+            const alternative = await this.findPlayableAlternative(yt, videoId, hint, skip);
+            if (alternative) {
+              this.checkCurrent(generation);
+              try {
+                const track = player
+                  ? await this.startStream(player, alternative.resolved, startSec, autoplay, generation)
+                  : await this.startDirectElementStream(alternative.resolved, startSec, autoplay, generation);
+                trackLog.i(
+                  `playing via fallback ${alternative.videoId} (${track.client}, ${track.format})`,
+                  alternative.videoId,
+                );
+                return track;
+              } catch (altError) {
+                if (altError instanceof SupersededError) throw altError;
+                trackLog.w(`fallback track ${alternative.videoId} streaming failed: ${describe(altError)}`, videoId);
+              }
+            }
+          }
+
+          throw error;
         }
         this.checkCurrent(generation);
         try {
@@ -266,6 +292,44 @@ export class YouTubeEngine {
     } finally {
       if (generation === this.generation) this.loading = false;
     }
+  }
+
+  private async findPlayableAlternative(
+    yt: Innertube,
+    failedVideoId: string,
+    hint?: TrackLoadHint,
+    skipClients: ReadonlySet<PlayerClientName> = new Set(),
+  ): Promise<{ videoId: string; resolved: ResolvedPlayer } | null> {
+    try {
+      let query = hint?.title ? `${hint.title} ${hint.artist ?? ''}`.trim() : null;
+      if (!query) {
+        const basic = await yt.getBasicInfo(failedVideoId).catch(() => null);
+        const title = basic?.basic_info?.title;
+        const author = basic?.basic_info?.author;
+        if (title) query = `${title} ${author ?? ''}`.trim();
+      }
+      if (!query) return null;
+
+      const { searchSongs, searchMainVideos } = await import('@/data/music/api');
+      let candidates = await searchSongs(query).catch(() => []);
+      if (!candidates.length) {
+        candidates = await searchMainVideos(query).catch(() => []);
+      }
+
+      for (const item of candidates) {
+        if (!item.videoId || item.videoId === failedVideoId) continue;
+        try {
+          const resolved = await resolvePlayer(yt, item.videoId, skipClients, false);
+          trackLog.i(`resolved playable alternative for ${failedVideoId}: ${item.videoId} ("${item.title}")`, failedVideoId);
+          return { videoId: item.videoId, resolved };
+        } catch {
+          // Candidate failed or was also unplayable, continue trying next candidate
+        }
+      }
+    } catch (err) {
+      trackLog.w(`findPlayableAlternative failed: ${String(err)}`, failedVideoId);
+    }
+    return null;
   }
 
   private checkCurrent(generation: number) {

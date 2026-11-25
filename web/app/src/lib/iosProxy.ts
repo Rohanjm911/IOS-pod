@@ -27,7 +27,7 @@ function readStoredProxy(): string | null {
 }
 
 let customProxy: string | null = readStoredProxy() ?? normalizeProxyBase(config.ytProxyUrl);
-let builtinAvailable: boolean | null = customProxy ? null : typeof window === 'undefined' ? false : null;
+let builtinAvailable: boolean | null = customProxy ? null : typeof window === 'undefined' ? false : true;
 
 function activeProxy(): string | null {
   return customProxy ?? (builtinAvailable ? BUILTIN_PROXY_PATH : null);
@@ -48,8 +48,10 @@ function probeBuiltInProxy(): void {
     })
     .catch(() => false)
     .then((ok) => {
-      builtinAvailable = ok;
-      notify();
+      if (builtinAvailable !== ok) {
+        builtinAvailable = ok;
+        notify();
+      }
     });
 }
 

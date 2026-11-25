@@ -798,6 +798,9 @@ async function startAt(at: number, { startSec = 0, auto = false, autoplay = true
     applyVolumes();
     const track = await deck.engine.load(entry.track.videoId, { startSec, autoplay, hint: hintForTrack(entry.track) });
     if (token !== loadToken) return;
+    if (track.videoId !== entry.track.videoId) {
+      entry.track.videoId = track.videoId;
+    }
     applyTrack(track, entry.track);
     if (!autoplay) usePlayer.setState({ status: 'paused' });
     afterTrackStarted();
