@@ -150,16 +150,19 @@ export class IframePlayerAdapter {
 
     return new Promise((resolve, reject) => {
       let settled = false;
+      let readyDone = false;
       const timeout = window.setTimeout(() => {
         if (settled) return;
         settled = true;
         reject(new Error('YouTube IFrame player timed out'));
       }, 15_000);
 
+      let autoplayFallbackTimer: number | null = null;
       const finish = (durationSec: number) => {
         if (settled) return;
         settled = true;
         window.clearTimeout(timeout);
+        if (autoplayFallbackTimer !== null) window.clearTimeout(autoplayFallbackTimer);
         resolve({ durationSec });
       };
 
@@ -167,6 +170,7 @@ export class IframePlayerAdapter {
         if (settled) return;
         settled = true;
         window.clearTimeout(timeout);
+        if (autoplayFallbackTimer !== null) window.clearTimeout(autoplayFallbackTimer);
         reject(err);
       };
 
@@ -191,18 +195,28 @@ export class IframePlayerAdapter {
               fail(new Error('Adapter disposed'));
               return;
             }
+            readyDone = true;
             const p = e.target;
             p.setVolume(Math.round(this.currentVolume * 100));
             if (this.isMuted) p.mute();
             else p.unMute();
             if (startSec > 0) p.seekTo(startSec, true);
-            if (autoplay) p.playVideo();
 
             const dur = p.getDuration() || fallbackDurationSec || 0;
             this.cachedDuration = dur;
             this.audio.dispatchEvent(new Event('durationchange'));
             this.startTicker();
-            finish(dur);
+
+            if (autoplay) {
+              p.playVideo();
+              // Wait briefly for PLAYING (so immediate embed errors 101/150 reject cleanly),
+              // or resolve as paused if the browser blocked autoplay.
+              autoplayFallbackTimer = window.setTimeout(() => {
+                finish(this.player?.getDuration() || dur);
+              }, 2500);
+            } else {
+              finish(dur);
+            }
           },
           onStateChange: (e) => {
             if (this.disposed) return;
@@ -217,6 +231,7 @@ export class IframePlayerAdapter {
               this.isEnded = false;
               this.audio.dispatchEvent(new Event('play'));
               this.audio.dispatchEvent(new Event('playing'));
+              if (readyDone) finish(dur || this.cachedDuration);
             } else if (state === YT.PlayerState.PAUSED) {
               this.isPaused = true;
               this.cachedTime = this.player?.getCurrentTime() ?? this.cachedTime;

@@ -11,7 +11,9 @@ import { botguard } from './botguard';
 import { ytAuthSnapshot } from '@/extension/useYtAuth';
 import { getInnertube, getSignedInnertube } from './innertube';
 import {
+  BotGateError,
   CLIENT_ATTEMPTS,
+  isProxyBotGated,
   usesWebPo,
   excludeClient,
   playerRequest,
@@ -219,6 +221,12 @@ export class YouTubeEngine {
         }
       }
 
+      if (!getBridge() && isProxyBotGated() && typeof window !== 'undefined') {
+        const track = await this.startIframeStream(videoId, startSec, autoplay, generation, hint);
+        trackLog.i(`playing via YouTube IFrame after ${Math.round(performance.now() - started)}ms`, track.videoId);
+        return track;
+      }
+
       const useMse = shaka.Player.isBrowserSupported();
       const player = useMse ? await this.ensurePlayer() : null;
       this.yt ??= await timed('InnerTube session', videoId, getInnertube);
@@ -233,6 +241,8 @@ export class YouTubeEngine {
         try {
           resolved = await timed('player request', videoId, () => resolvePlayer(yt, videoId, skip, signed));
         } catch (error) {
+          if (error instanceof BotGateError) throw error;
+
           // An age gate is a verdict on the visitor: if we have the desktop extension with cookies, ask signed in.
           if (error instanceof UnplayableError && error.ageGated && !signed && getBridge() && ytAuthSnapshot().signedIn) {
             trackLog.i('age-restricted; asking again signed in via extension', videoId);

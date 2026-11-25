@@ -187,8 +187,20 @@ export async function playerRequest(
   });
 }
 
+/** Raised when YouTube rejects the proxy/datacenter IP with a bot check. */
+export class BotGateError extends Error {
+  override readonly name = 'BotGateError';
+}
+
+let proxyBotGated = false;
+
+export function isProxyBotGated(): boolean {
+  return proxyBotGated;
+}
+
 /** Why a playability status is a verdict on the track rather than on the client, or null if it isn't. */
-const AGE_GATE = /confirm your age|age-restricted|inappropriate for some users|sign in to confirm/;
+const AGE_GATE = /confirm your age|age-restricted|inappropriate for some users/;
+const BOT_GATE = /not a bot|automated queries|status code 403/i;
 
 function permanentReason(status: string | undefined, reason: string | undefined, signedIn: boolean): string | null {
   const text = (reason ?? '').toLowerCase();
@@ -242,6 +254,10 @@ export async function resolvePlayer(
         return { videoId, client, info, yt, signed };
       }
       const reason = info.playability_status?.reason ?? (status === 'OK' ? 'no audio stream in the response' : status ?? 'no status');
+      if (BOT_GATE.test(reason) && !getBridge()) {
+        proxyBotGated = true;
+        throw new BotGateError(reason);
+      }
       lastReason = reason;
       const verdict = permanentReason(status, reason, signed);
       if (verdict) {
@@ -250,8 +266,14 @@ export async function resolvePlayer(
       }
       excludeClient(videoId, client, `${status}: ${reason} (${ms}ms)`, signed);
     } catch (error) {
-      lastReason = String(error);
-      excludeClient(videoId, client, `request failed: ${String(error)}`, signed);
+      if (error instanceof BotGateError) throw error;
+      const msg = String(error);
+      if (BOT_GATE.test(msg) && !getBridge()) {
+        proxyBotGated = true;
+        throw new BotGateError(msg);
+      }
+      lastReason = msg;
+      excludeClient(videoId, client, `request failed: ${msg}`, signed);
     }
   }
 
