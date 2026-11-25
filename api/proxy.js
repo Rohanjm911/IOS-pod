@@ -66,10 +66,25 @@ function json(data, status, request) {
 
 function applyUpstreamHeaders(target, incoming) {
   const headers = new Headers();
-  for (const name of ['accept', 'accept-language', 'content-type', 'range', 'if-range', 'x-goog-api-key', 'x-user-agent']) {
+  for (const name of [
+    'accept',
+    'accept-language',
+    'content-type',
+    'range',
+    'if-range',
+    'x-goog-api-key',
+    'x-goog-visitor-id',
+    'x-youtube-client-name',
+    'x-youtube-client-version',
+  ]) {
     const value = incoming.get(name);
     if (value) headers.set(name, value);
   }
+  headers.set(
+    'User-Agent',
+    incoming.get('x-user-agent') ||
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  );
 
   const host = target.hostname.toLowerCase();
   if (host === 'music.youtube.com') {
