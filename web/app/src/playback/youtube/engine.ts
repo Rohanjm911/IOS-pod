@@ -243,8 +243,8 @@ export class YouTubeEngine {
 
           // Fallback for age-restricted / unplayable tracks:
           // Find an alternative playable song/audio release (official topic/audio cut) so songs play seamlessly without setbacks.
-          if (error instanceof UnplayableError && error.ageGated) {
-            trackLog.i(`track ${videoId} is age-restricted; finding playable audio fallback`, videoId);
+          if (error instanceof UnplayableError) {
+            trackLog.i(`track ${videoId} is unplayable (${error.message}); finding playable audio fallback`, videoId);
             const alternative = await this.findPlayableAlternative(yt, videoId, hint, skip);
             if (alternative) {
               this.checkCurrent(generation);

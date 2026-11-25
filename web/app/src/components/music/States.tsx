@@ -11,28 +11,36 @@ export const stateStyles = {
 
 /** In place of a YouTube page when neither extension nor iOS proxy is configured. */
 export function NeedsExtension({ what = 'YouTube Music' }: { what?: string }) {
-  if (isIosDevice()) {
+  if (what === 'YouTube Music') {
     return (
       <div className={stateStyles.state}>
-        <p className={stateStyles.title}>Connect {what} for iOS</p>
+        <p className={stateStyles.title}>Connecting to YouTube Music…</p>
         <p className={stateStyles.detail}>
-          iPhone &amp; iPad Safari can’t install desktop extensions. Add your self-hosted iOS proxy URL in Settings to browse and play YouTube Music.
+          BitChord Web is streaming through the built-in edge proxy.
         </p>
-        <PrefetchLink to="/settings" className={stateStyles.button}>
-          Open iOS Setup
+        <PrefetchLink to="/" className={stateStyles.button}>
+          Refresh Home
         </PrefetchLink>
       </div>
     );
   }
   return (
     <div className={stateStyles.state}>
-      <p className={stateStyles.title}>Browse {what} with the BitChord extension</p>
+      <p className={stateStyles.title}>{what}</p>
       <p className={stateStyles.detail}>
-        The extension lets this page reach YouTube Music from your own browser. Addons and lyrics work without it.
+        Connecting {what} directly requires the desktop extension to read browser session cookies. All YouTube Music tracks and playlists are playable right here in the web app!
       </p>
-      <PrefetchLink to="/extension" className={stateStyles.button}>
-        Get the Extension
-      </PrefetchLink>
+      <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+        <PrefetchLink to="/" className={stateStyles.button}>
+          Explore Music
+        </PrefetchLink>
+        <PrefetchLink
+          to="/extension"
+          className="mt-3 inline-flex h-8 items-center rounded-pill bg-elevated px-4 type-body-emphasized text-secondary hover:text-white"
+        >
+          Get Extension
+        </PrefetchLink>
+      </div>
     </div>
   );
 }
