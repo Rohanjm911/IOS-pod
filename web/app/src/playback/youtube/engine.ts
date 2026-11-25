@@ -21,6 +21,7 @@ import {
   type ResolvedPlayer,
 } from './resolver';
 import { ShakaPlayerAdapter } from './ShakaPlayerAdapter';
+import { ensureYtIframeApi, IframePlayerAdapter } from './IframePlayerAdapter';
 
 export interface TrackLoadHint {
   title?: string;
@@ -97,6 +98,7 @@ export class YouTubeEngine {
   readonly audio: HTMLAudioElement;
   private player: shaka.Player | null = null;
   private adapter: SabrStreamingAdapter | null = null;
+  private iframeAdapter: IframePlayerAdapter | null = null;
   private yt: Innertube | null = null;
   private generation = 0;
   private loading = false;
@@ -164,6 +166,7 @@ export class YouTubeEngine {
   async warm(): Promise<void> {
     this.yt ??= await getInnertube();
     await botguard.init().catch((error: unknown) => trackLog.w(`BotGuard warm-up failed: ${String(error)}`));
+    if (!getBridge()) void ensureYtIframeApi().catch(() => {});
   }
 
   /**
@@ -284,13 +287,97 @@ export class YouTubeEngine {
       }
       throw lastError instanceof Error ? lastError : new Error('No YouTube client could stream this track');
     } catch (error) {
-      if (!(error instanceof SupersededError)) {
-        trackLog.e(`load failed: ${describe(error)}`, videoId);
+      if (error instanceof SupersededError) throw error;
+      // When Vercel / proxy IPs are blocked by YouTube ("Sign in to confirm you're not a bot" / 403),
+      // fall back to YouTube's official IFrame Player running directly on the user's browser IP.
+      if (!getBridge() && typeof window !== 'undefined') {
+        try {
+          trackLog.i(`direct stream failed (${describe(error)}); falling back to YouTube IFrame player`, videoId);
+          const track = await this.startIframeStream(videoId, startSec, autoplay, generation, hint);
+          trackLog.i(`playing via YouTube IFrame after ${Math.round(performance.now() - started)}ms`, track.videoId);
+          return track;
+        } catch (iframeError) {
+          if (iframeError instanceof SupersededError) throw iframeError;
+          trackLog.e(`IFrame fallback failed: ${describe(iframeError)}`, videoId);
+        }
       }
+      trackLog.e(`load failed: ${describe(error)}`, videoId);
       throw error;
     } finally {
       if (generation === this.generation) this.loading = false;
     }
+  }
+
+  private async startIframeStream(
+    videoId: string,
+    startSec: number,
+    autoplay: boolean,
+    generation: number,
+    hint?: TrackLoadHint,
+  ): Promise<LoadedTrack> {
+    this.iframeAdapter?.dispose();
+    this.iframeAdapter = null;
+    this.adapter?.dispose();
+    this.adapter = null;
+    await this.player?.unload();
+    this.current = { videoId, client: 'WEB', signed: false };
+    this.direct = null;
+
+    const tryEmbed = async (id: string): Promise<{ videoId: string; durationSec: number }> => {
+      this.checkCurrent(generation);
+      this.iframeAdapter?.dispose();
+      const adapter = new IframePlayerAdapter(this.audio);
+      this.iframeAdapter = adapter;
+      const { durationSec } = await adapter.load(id, {
+        startSec,
+        autoplay,
+        fallbackDurationSec: hint?.durationSec ?? 0,
+      });
+      this.checkCurrent(generation);
+      return { videoId: id, durationSec };
+    };
+
+    let played: { videoId: string; durationSec: number };
+    try {
+      played = await tryEmbed(videoId);
+    } catch (firstError) {
+      if (firstError instanceof SupersededError || !hint?.title) throw firstError;
+      const { searchSongs, searchMainVideos } = await import('@/data/music/api');
+      const query = `${hint.title} ${hint.artist ?? ''}`.trim();
+      let candidates = await searchSongs(query).catch(() => []);
+      if (!candidates.length) candidates = await searchMainVideos(query).catch(() => []);
+      let fallbackResult: { videoId: string; durationSec: number } | null = null;
+      for (const item of candidates) {
+        if (!item.videoId || item.videoId === videoId) continue;
+        try {
+          fallbackResult = await tryEmbed(item.videoId);
+          break;
+        } catch (e) {
+          if (e instanceof SupersededError) throw e;
+        }
+      }
+      if (!fallbackResult) throw firstError;
+      played = fallbackResult;
+    }
+
+    return {
+      videoId: played.videoId,
+      title: hint?.title ?? '',
+      author: hint?.artist ?? '',
+      durationSec: played.durationSec || hint?.durationSec || 0,
+      thumbnails: [],
+      client: 'WEB',
+      format: 'YouTube Embed',
+      stream: {
+        codec: 'AAC',
+        itag: 'embed',
+        bitrateKbps: 128,
+        sampleRateHz: 44100,
+        channels: 2,
+        mode: 'direct',
+      },
+      loudnessDb: null,
+    };
   }
 
   private async findPlayableAlternative(
@@ -353,6 +440,8 @@ export class YouTubeEngine {
     generation: number,
   ): Promise<LoadedTrack> {
     const { videoId, client, info, signed } = resolved;
+    this.iframeAdapter?.dispose();
+    this.iframeAdapter = null;
     await player.unload();
     this.adapter?.dispose();
     this.adapter = null;
@@ -443,6 +532,8 @@ export class YouTubeEngine {
     generation: number,
     quality: AudioQualityTier,
   ): Promise<LoadedTrack> {
+    this.iframeAdapter?.dispose();
+    this.iframeAdapter = null;
     this.adapter?.dispose();
     this.adapter = null;
     this.current = null;
@@ -546,6 +637,8 @@ export class YouTubeEngine {
     generation: number,
   ): Promise<LoadedTrack> {
     const { videoId, client, info, yt, signed } = resolved;
+    this.iframeAdapter?.dispose();
+    this.iframeAdapter = null;
     this.adapter?.dispose();
     this.adapter = null;
     this.current = { videoId, client, signed };
@@ -797,6 +890,8 @@ export class YouTubeEngine {
     this.generation++;
     this.current = null;
     this.direct = null;
+    this.iframeAdapter?.dispose();
+    this.iframeAdapter = null;
     await this.player?.unload();
     this.adapter?.dispose();
     this.adapter = null;
