@@ -104,6 +104,7 @@ const BRIDGED_PROPS = ['currentTime', 'duration', 'paused', 'ended', 'volume', '
 
 export class IframePlayerAdapter {
   private player: YtIframePlayer | null = null;
+  private rawPlayer: YtIframePlayer | null = null;
   private container: HTMLDivElement | null = null;
   private tickTimer: number | null = null;
   private disposed = false;
@@ -174,7 +175,7 @@ export class IframePlayerAdapter {
         reject(err);
       };
 
-      this.player = new YT.Player(target, {
+      this.rawPlayer = new YT.Player(target, {
         width: 200,
         height: 200,
         videoId,
@@ -197,22 +198,27 @@ export class IframePlayerAdapter {
             }
             readyDone = true;
             const p = e.target;
-            p.setVolume(Math.round(this.currentVolume * 100));
-            if (this.isMuted) p.mute();
-            else p.unMute();
-            if (startSec > 0) p.seekTo(startSec, true);
+            this.player = p;
+            if (typeof p.setVolume === 'function') p.setVolume(Math.round(this.currentVolume * 100));
+            if (this.isMuted) {
+              if (typeof p.mute === 'function') p.mute();
+            } else if (typeof p.unMute === 'function') {
+              p.unMute();
+            }
+            if (startSec > 0 && typeof p.seekTo === 'function') p.seekTo(startSec, true);
 
-            const dur = p.getDuration() || fallbackDurationSec || 0;
+            const dur = (typeof p.getDuration === 'function' ? p.getDuration() : 0) || fallbackDurationSec || 0;
             this.cachedDuration = dur;
             this.audio.dispatchEvent(new Event('durationchange'));
             this.startTicker();
 
             if (autoplay) {
-              p.playVideo();
+              if (typeof p.playVideo === 'function') p.playVideo();
               // Wait briefly for PLAYING (so immediate embed errors 101/150 reject cleanly),
               // or resolve as paused if the browser blocked autoplay.
               autoplayFallbackTimer = window.setTimeout(() => {
-                finish(this.player?.getDuration() || dur);
+                const liveDur = typeof this.player?.getDuration === 'function' ? this.player.getDuration() : 0;
+                finish(liveDur || dur);
               }, 2500);
             } else {
               finish(dur);
@@ -221,7 +227,7 @@ export class IframePlayerAdapter {
           onStateChange: (e) => {
             if (this.disposed) return;
             const state = e.data;
-            const dur = this.player?.getDuration() || 0;
+            const dur = typeof this.player?.getDuration === 'function' ? this.player.getDuration() : 0;
             if (dur > 0 && dur !== this.cachedDuration) {
               this.cachedDuration = dur;
               this.audio.dispatchEvent(new Event('durationchange'));
@@ -234,7 +240,9 @@ export class IframePlayerAdapter {
               if (readyDone) finish(dur || this.cachedDuration);
             } else if (state === YT.PlayerState.PAUSED) {
               this.isPaused = true;
-              this.cachedTime = this.player?.getCurrentTime() ?? this.cachedTime;
+              if (typeof this.player?.getCurrentTime === 'function') {
+                this.cachedTime = this.player.getCurrentTime();
+              }
               this.audio.dispatchEvent(new Event('pause'));
             } else if (state === YT.PlayerState.BUFFERING) {
               this.audio.dispatchEvent(new Event('waiting'));
@@ -256,12 +264,16 @@ export class IframePlayerAdapter {
     if (this.tickTimer !== null) return;
     this.tickTimer = window.setInterval(() => {
       if (this.disposed || !this.player || this.isPaused) return;
-      const t = this.player.getCurrentTime();
-      if (Number.isFinite(t)) this.cachedTime = t;
-      const dur = this.player.getDuration();
-      if (Number.isFinite(dur) && dur > 0 && dur !== this.cachedDuration) {
-        this.cachedDuration = dur;
-        this.audio.dispatchEvent(new Event('durationchange'));
+      if (typeof this.player.getCurrentTime === 'function') {
+        const t = this.player.getCurrentTime();
+        if (Number.isFinite(t)) this.cachedTime = t;
+      }
+      if (typeof this.player.getDuration === 'function') {
+        const dur = this.player.getDuration();
+        if (Number.isFinite(dur) && dur > 0 && dur !== this.cachedDuration) {
+          this.cachedDuration = dur;
+          this.audio.dispatchEvent(new Event('durationchange'));
+        }
       }
       this.audio.dispatchEvent(new Event('timeupdate'));
     }, 250);
@@ -274,13 +286,15 @@ export class IframePlayerAdapter {
     Object.defineProperty(audio, 'currentTime', {
       configurable: true,
       get: () => {
-        const t = self.player?.getCurrentTime();
-        if (typeof t === 'number' && Number.isFinite(t)) self.cachedTime = t;
+        if (typeof self.player?.getCurrentTime === 'function') {
+          const t = self.player.getCurrentTime();
+          if (typeof t === 'number' && Number.isFinite(t)) self.cachedTime = t;
+        }
         return self.cachedTime;
       },
       set: (sec: number) => {
         self.cachedTime = Math.max(0, sec);
-        self.player?.seekTo(self.cachedTime, true);
+        if (typeof self.player?.seekTo === 'function') self.player.seekTo(self.cachedTime, true);
         audio.dispatchEvent(new Event('seeked'));
         audio.dispatchEvent(new Event('timeupdate'));
       },
@@ -288,7 +302,10 @@ export class IframePlayerAdapter {
 
     Object.defineProperty(audio, 'duration', {
       configurable: true,
-      get: () => self.player?.getDuration() || self.cachedDuration || 0,
+      get: () => {
+        const d = typeof self.player?.getDuration === 'function' ? self.player.getDuration() : 0;
+        return d || self.cachedDuration || 0;
+      },
     });
 
     Object.defineProperty(audio, 'paused', {
@@ -306,7 +323,7 @@ export class IframePlayerAdapter {
       get: () => self.currentVolume,
       set: (v: number) => {
         self.currentVolume = Math.max(0, Math.min(1, v));
-        self.player?.setVolume(Math.round(self.currentVolume * 100));
+        if (typeof self.player?.setVolume === 'function') self.player.setVolume(Math.round(self.currentVolume * 100));
         audio.dispatchEvent(new Event('volumechange'));
       },
     });
@@ -316,8 +333,11 @@ export class IframePlayerAdapter {
       get: () => self.isMuted,
       set: (m: boolean) => {
         self.isMuted = !!m;
-        if (self.isMuted) self.player?.mute();
-        else self.player?.unMute();
+        if (self.isMuted) {
+          if (typeof self.player?.mute === 'function') self.player.mute();
+        } else if (typeof self.player?.unMute === 'function') {
+          self.player.unMute();
+        }
         audio.dispatchEvent(new Event('volumechange'));
       },
     });
@@ -327,7 +347,7 @@ export class IframePlayerAdapter {
       value: async () => {
         self.isPaused = false;
         self.isEnded = false;
-        self.player?.playVideo();
+        if (typeof self.player?.playVideo === 'function') self.player.playVideo();
         audio.dispatchEvent(new Event('play'));
         audio.dispatchEvent(new Event('playing'));
       },
@@ -337,7 +357,7 @@ export class IframePlayerAdapter {
       configurable: true,
       value: () => {
         self.isPaused = true;
-        self.player?.pauseVideo();
+        if (typeof self.player?.pauseVideo === 'function') self.player.pauseVideo();
         audio.dispatchEvent(new Event('pause'));
       },
     });
@@ -363,12 +383,15 @@ export class IframePlayerAdapter {
     }
     this.unmountBridge();
     try {
-      this.player?.stopVideo();
-      this.player?.destroy();
+      if (typeof this.player?.stopVideo === 'function') this.player.stopVideo();
+      if (typeof (this.player ?? this.rawPlayer)?.destroy === 'function') {
+        (this.player ?? this.rawPlayer)!.destroy();
+      }
     } catch {
       // Ignore destroy errors
     }
     this.player = null;
+    this.rawPlayer = null;
     this.container?.remove();
     this.container = null;
   }
