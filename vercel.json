@@ -1,8 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "installCommand": "corepack enable && cd web && pnpm install --no-frozen-lockfile",
-  "buildCommand": "cd web && pnpm --filter @bitchord/app build",
+  "installCommand": "npx --yes pnpm@9.15.9 --dir web install --no-frozen-lockfile",
+  "buildCommand": "npx --yes pnpm@9.15.9 --dir web --filter @bitchord/app build",
   "outputDirectory": "web/app/dist",
   "headers": [
     {
