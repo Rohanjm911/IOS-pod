@@ -13,8 +13,8 @@ import { botguard } from './botguard';
  * "The page needs to be reloaded" and WEB_EMBEDDED "This video is unavailable",
  * so those two are left out. googlevideo's own SABR example uses VISIONOS.
  */
-export const CLIENT_ORDER = ['VISIONOS', 'YTMUSIC', 'IOS', 'WEB', 'MWEB'] as const;
-const NON_MSE_ORDER: readonly PlayerClientName[] = ['IOS', 'VISIONOS', 'YTMUSIC', 'WEB', 'MWEB'];
+export const CLIENT_ORDER = ['VISIONOS', 'IOS', 'ANDROID', 'YTMUSIC', 'WEB', 'MWEB'] as const;
+const NON_MSE_ORDER: readonly PlayerClientName[] = ['IOS', 'VISIONOS', 'ANDROID', 'YTMUSIC', 'WEB', 'MWEB'];
 export type PlayerClientName = (typeof CLIENT_ORDER)[number];
 
 /**
@@ -137,7 +137,7 @@ function clientOrder(): readonly PlayerClientName[] {
  * way (WEB_REMIX with cookies, InnerTubeX). VISIONOS follows in case the
  * session is honoured there too.
  */
-const SIGNED_ORDER: readonly PlayerClientName[] = ['YTMUSIC', 'WEB', 'VISIONOS'];
+const SIGNED_ORDER: readonly PlayerClientName[] = ['VISIONOS', 'IOS', 'ANDROID', 'YTMUSIC', 'WEB'];
 
 export function clientsFor(videoId: string, signed = false): PlayerClientName[] {
   const entries = excluded.get(keyOf(videoId, signed));
