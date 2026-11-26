@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { isVideoOrMissingArt, resolveAutoAlbumArt } from '@/data/apple/albumArt';
 import { useLocalLibrary } from '@/data/music/localLibrary';
 import { useAddons } from '@/data/sources/addonsStore';
+import { isExternalTrackId } from '@/data/sources/externalSources';
 import type { Track } from '@/data/music/types';
 import { extensionQueryKey } from '@/extension/useExtension';
 import { artworkAtPixels } from '@/lib/artwork';
@@ -28,6 +29,18 @@ import {
 import { trackLog } from '@/playback/trackLog';
 import type { LoadedTrack, StreamStats, YouTubeEngine } from '@/playback/youtube/engine';
 import type { AutomixGraph, AutoDJSnapshot } from '@/playback/automix';
+import {
+  detectSkipSegments,
+  findActiveSkipSegment,
+  segmentKey,
+  type SkipSegment,
+} from '@/playback/introOutroSkip';
+import {
+  applyEqualizerVolumes,
+  connectAudioElementToEqualizer,
+  getActiveAnalyser,
+  resumeAudioContext,
+} from '@/state/equalizer';
 
 export interface NowPlaying {
   videoId: string;
@@ -62,6 +75,8 @@ interface Settings {
   automixBars: number;
   /** Stats for nerds: the stream's codec, bitrate and sample rate, and what Automix is doing, under the artist. */
   showNerdStats: boolean;
+  /** Automatically detect and skip music-video intros, skits, and end credits. */
+  skipIntroOutro: boolean;
 }
 
 interface PlayerState extends Settings {
@@ -107,6 +122,7 @@ interface PlayerState extends Settings {
   setAutomix: (on: boolean) => void;
   setAutomixBars: (bars: number) => void;
   setShowNerdStats: (on: boolean) => void;
+  setSkipIntroOutro: (on: boolean) => void;
 }
 
 // ---- Settings, kept across visits ---------------------------------------------------
@@ -124,6 +140,7 @@ const DEFAULT_SETTINGS: Settings = {
   automix: false,
   automixBars: 16,
   showNerdStats: false,
+  skipIntroOutro: true,
 };
 
 interface SavedSession {
@@ -187,10 +204,10 @@ function loadSettings(): Settings {
 }
 
 function saveSettings(state: Settings) {
-  const { shuffle, repeat, autoplay, volume, muted, crossfadeSec, automix, automixBars, showNerdStats } = state;
+  const { shuffle, repeat, autoplay, volume, muted, crossfadeSec, automix, automixBars, showNerdStats, skipIntroOutro } = state;
   localStorage.setItem(
     SETTINGS_KEY,
-    JSON.stringify({ shuffle, repeat, autoplay, volume, muted, crossfadeSec, automix, automixBars, showNerdStats }),
+    JSON.stringify({ shuffle, repeat, autoplay, volume, muted, crossfadeSec, automix, automixBars, showNerdStats, skipIntroOutro }),
   );
 }
 
@@ -228,6 +245,7 @@ function ensureAudioElements(): [HTMLAudioElement, HTMLAudioElement] {
  * before async network calls (InnerTube / player resolution) finish.
  */
 function unlockAudioOnGesture() {
+  resumeAudioContext();
   if (graph && (graph.ctx.state === 'suspended' || (graph.ctx.state as string) === 'interrupted')) {
     void graph.ctx.resume();
   }
@@ -273,6 +291,8 @@ function getDecks(): Promise<Deck[]> {
     decks = elements.map((audio, n) => {
       const engine = new YouTubeEngine(audio);
       const deck: Deck = { engine, audio, gain: 1 };
+      // Wire directly to 10-band equalizer graph
+      connectAudioElementToEqualizer(audio, n);
       engine.onFatal = (videoId, message) => {
         if (decks?.[active] !== deck) return;
         trackLog.e(`stopped: ${message}`, videoId);
@@ -289,6 +309,8 @@ function getDecks(): Promise<Deck[]> {
       bindElement(deck, n);
       return deck;
     });
+    // Wire up Web Audio graph immediately so Equalizer & Analyser are always active
+    void ensureAutomix();
     applyVolumes();
     // For browser-driven tests: the elements aren't in the DOM.
     if (import.meta.env.DEV) Object.defineProperty(window, '__bcAudio', { get: getAudio, configurable: true });
@@ -300,17 +322,28 @@ function getDecks(): Promise<Deck[]> {
 function applyVolumes() {
   const { volume, muted } = usePlayer.getState();
   const level = muted ? 0 : Math.min(1, Math.max(0, volume));
+
+  // 1. Always update audio elements directly so IframePlayerAdapter (YouTube iframe bridge)
+  // and native HTMLAudioElement respond to volume slider and mute toggle immediately!
+  for (const deck of decks ?? []) {
+    deck.audio.volume = level * deck.gain;
+    deck.audio.muted = muted;
+  }
+
+  // 2. Also update Web Audio Equalizer graph master gain and deck faders
+  applyEqualizerVolumes(
+    level,
+    (decks ?? []).map((d) => d.gain),
+  );
+
+  // 3. Update Automix graph if active
   if (graph) {
-    // Routed through Web Audio: the elements stay at 1 and the graph carries volume and the fade.
     const now = graph.ctx.currentTime;
     graph.master.gain.setTargetAtTime(level, now, 0.015);
     (decks ?? []).forEach((deck, n) => {
-      deck.audio.volume = 1;
       graph!.decks[n]!.fader.gain.setTargetAtTime(deck.gain, now, 0.015);
     });
-    return;
   }
-  for (const deck of decks ?? []) deck.audio.volume = level * deck.gain;
 }
 
 // ---- AutoMix (playback/automix): the two decks routed through Web Audio, mixed like a DJ ----
@@ -453,7 +486,8 @@ function syncAutomix() {
   });
 }
 
-function extensionReady(): boolean {
+function extensionReady(videoId?: string): boolean {
+  if (videoId && isExternalTrackId(videoId)) return true;
   const detected = queryClient.getQueryData<DetectedExtension | null>(extensionQueryKey);
   return !!detected?.info.capabilities.includes('yt') || !!getProxyUrl() || useAddons.getState().addons.some((a) => a.enabled);
 }
@@ -512,6 +546,8 @@ let canonical: Map<string, number> | null = null;
 
 const initialSession = typeof localStorage === 'undefined' ? null : loadPlaybackSession();
 
+let lastPreviousClick = 0;
+
 export const usePlayer = create<PlayerState>()((set, get) => ({
   ...loadSettings(),
   queue: initialSession?.queue ?? [],
@@ -546,6 +582,7 @@ export const usePlayer = create<PlayerState>()((set, get) => ({
     canonical = null;
     set({ queue: buildOneOffQueue(queue, index, track, source) });
     void startAt(0);
+    void refillAutoplay(true);
     intent();
   },
 
@@ -613,16 +650,35 @@ export const usePlayer = create<PlayerState>()((set, get) => ({
   },
 
   next() {
+    unlockAudioOnGesture();
     void advance(false).then(intent);
   },
 
   previous() {
+    unlockAudioOnGesture();
     const { index, queue, repeat } = get();
     const audio = getAudio();
-    if (audio && audio.currentTime > BACK_RESTARTS_AFTER_SEC) return get().seek(0);
-    if (index > 0) void startAt(index - 1);
-    else if (repeat === 'all' && queue.length > 1) void startAt(queue.length - 1);
-    else return get().seek(0);
+    const now = Date.now();
+    const isDoubleTap = now - lastPreviousClick < 2000;
+    lastPreviousClick = now;
+
+    // If more than 3s in and first tap: seek back to 0.
+    // If double tap within 2s OR if near start (<= 3s): jump to previous track!
+    if (audio && audio.currentTime > BACK_RESTARTS_AFTER_SEC && !isDoubleTap) {
+      get().seek(0);
+      intent();
+      return;
+    }
+
+    if (index > 0) {
+      void startAt(index - 1);
+    } else if (repeat === 'all' && queue.length > 1) {
+      void startAt(queue.length - 1);
+    } else if (queue.length > 1) {
+      void startAt(queue.length - 1);
+    } else {
+      get().seek(0);
+    }
     intent();
   },
 
@@ -709,7 +765,12 @@ export const usePlayer = create<PlayerState>()((set, get) => ({
   },
 
   toggleMute() {
-    set({ muted: !get().muted });
+    const nextMuted = !get().muted;
+    let nextVolume = get().volume;
+    if (!nextMuted && nextVolume <= 0.01) {
+      nextVolume = 0.5;
+    }
+    set({ muted: nextMuted, volume: nextVolume });
     applyVolumes();
     saveSettings(get());
   },
@@ -735,6 +796,11 @@ export const usePlayer = create<PlayerState>()((set, get) => ({
 
   setShowNerdStats(showNerdStats) {
     set({ showNerdStats });
+    saveSettings(get());
+  },
+
+  setSkipIntroOutro(skipIntroOutro) {
+    set({ skipIntroOutro });
     saveSettings(get());
   },
 }));
@@ -776,7 +842,7 @@ async function startAt(at: number, { startSec = 0, auto = false, autoplay = true
   cancelCrossfade();
   const token = ++loadToken;
 
-  if (!extensionReady()) {
+  if (!extensionReady(entry.track.videoId)) {
     usePlayer.setState({
       index: at,
       nowPlaying: { ...hintOf(entry.track), title: entry.track.title || 'Can’t play this here yet' },
@@ -803,18 +869,19 @@ async function startAt(at: number, { startSec = 0, auto = false, autoplay = true
     }
     applyTrack(track, entry.track);
     if (!autoplay) usePlayer.setState({ status: 'paused' });
+    void prepareIntroOutroSkip(track, entry.track, startSec);
     afterTrackStarted();
     syncAutomix();
   } catch (error) {
     if (token !== loadToken || (error instanceof Error && error.name === 'SupersededError')) return;
     const message = error instanceof Error ? error.message : String(error);
     usePlayer.setState({ status: 'error', error: message });
-    // A track the player reached on its own that can't play is skipped, as on the phone.
-    if (auto && planNext(true)) {
-      trackLog.w(`skipping: ${message}`, entry.track.videoId);
+    // A track that can't play is skipped to the next candidate (or radio track) so playback doesn't stall.
+    if (planNext(true) || usePlayer.getState().autoplay) {
+      trackLog.w(`skipping unplayable track: ${message}`, entry.track.videoId);
       setTimeout(() => {
         if (token === loadToken) void advance(true);
-      }, 1500);
+      }, 1200);
     }
   }
 }
@@ -840,15 +907,27 @@ function planNext(auto: boolean): NextPlan | null {
 }
 
 async function advance(auto: boolean): Promise<void> {
+  unlockAudioOnGesture();
   let plan = planNext(auto);
   if (!plan && usePlayer.getState().autoplay) {
-    await refillAutoplay(true);
+    await refillAutoplay(true, true);
     plan = planNext(auto);
   }
   if (!plan) {
-    // The end: leave the last track loaded and paused, as a music app does.
-    if (auto) usePlayer.setState({ status: 'paused' });
-    return;
+    const { queue } = usePlayer.getState();
+    if (queue.length > 1) {
+      plan = { kind: 'index', queue, index: 0 };
+    } else if (queue.length === 1) {
+      const audio = getAudio();
+      if (audio) {
+        audio.currentTime = 0;
+        void audio.play();
+      }
+      return;
+    } else {
+      if (auto) usePlayer.setState({ status: 'paused' });
+      return;
+    }
   }
   if (plan.kind === 'repeat-one') {
     const audio = getAudio();
@@ -916,29 +995,35 @@ function refillAutoplay(force = false, anySeed = false): Promise<void> {
   autoplaySeed = seed.videoId;
   refilling ??= (async () => {
     try {
-      const { fetchRadio } = await import('@/data/music/api');
-      const { candidates, seedIsVideo } = await fetchRadio(seed.videoId);
       const current = usePlayer.getState();
-      const extra = extendStation(
+      const { fetchSameGenreTracks } = await import('@/data/music/genreRadio');
+      const result = await fetchSameGenreTracks(
+        seed,
         current.queue.map((e) => e.track),
-        candidates,
         needed,
-        seedIsVideo,
       );
+      const extra = result.tracks;
       if (!extra.length) {
         exhaustedSeeds.add(seed.videoId);
         return;
       }
-      const source: QueueSource = { title: `${seed.title} Radio`, type: 'radio', id: `RDAMVM${seed.videoId}` };
+      const source: QueueSource = {
+        title: result.sourceTitle,
+        type: 'radio',
+        id: `genre_${seed.videoId}`,
+      };
       // Still on the same track? One that moved on gets its own top-up.
-      if (current.queue[current.index]?.track.videoId !== playing.videoId || !current.autoplay) {
+      const nowState = usePlayer.getState();
+      if (nowState.queue[nowState.index]?.track.videoId !== playing.videoId || !nowState.autoplay) {
         autoplaySeed = null;
         return;
       }
-      usePlayer.setState({ queue: [...current.queue, ...extra.map((t) => asEntry(t, 'autoplay', source))] });
-      trackLog.i(`AutoPlay added ${extra.length} tracks from ${seed.title}'s radio`, seed.videoId);
+      usePlayer.setState({
+        queue: [...nowState.queue, ...extra.map((t) => asEntry(t, 'autoplay', source))],
+      });
+      trackLog.i(`AutoPlay added ${extra.length} tracks from ${result.sourceTitle}`, seed.videoId);
     } catch (error) {
-      trackLog.w(`AutoPlay couldn't load the radio: ${String(error)}`, seed.videoId);
+      trackLog.w(`AutoPlay couldn't load same-genre radio: ${String(error)}`, seed.videoId);
       autoplaySeed = null;
     } finally {
       refilling = null;
@@ -952,20 +1037,18 @@ const EMPTY_RETRY_MS = 15_000;
 let lastEmptyRetry = 0;
 
 /**
- * The watchdog for an AutoPlay that is on but has nothing after the playing
- * track. A top-up runs only when a track starts, so a radio that failed to
- * load (a network blip, the extension not ready yet), one dropped because the
- * track changed while it loaded, or a seed whose radio had nothing new left
- * the queue empty until the music stopped. Called as the track plays.
+ * The watchdog for an AutoPlay that is on but has low/empty tracks after the playing
+ * track. Called continuously as the track plays.
  */
 function ensureAutoplay() {
   const { autoplay, repeat, queue, index, status } = usePlayer.getState();
   if (!autoplay || repeat !== 'off' || index < 0 || status !== 'playing' || partyHooks?.inParty()) return;
-  if (index + 1 < queue.length || refilling) return;
+  const upcomingCount = queue.slice(index + 1).length;
+  if (upcomingCount > 2 || refilling) return;
   const now = Date.now();
   if (now - lastEmptyRetry < EMPTY_RETRY_MS) return;
   lastEmptyRetry = now;
-  trackLog.i('AutoPlay is on but nothing is queued; asking for the radio again', queue[index]?.track.videoId ?? null);
+  trackLog.i('AutoPlay is low or empty; refilling same-genre radio', queue[index]?.track.videoId ?? null);
   void refillAutoplay(true, true);
 }
 
@@ -1130,6 +1213,118 @@ export function onTrackEnded(listener: () => void): () => void {
   return () => endedListeners.delete(listener);
 }
 
+// ---- Auto-Detect & Skip Intros / End Credits ---------------------------------------
+
+let activeSkipVideoId: string | null = null;
+let activeSkipSegments: SkipSegment[] = [];
+const skippedSegmentKeys = new Set<string>();
+let hasRealAudioInTrack = false;
+let silentTailStartMs = 0;
+let silenceAdvanceTriggered = false;
+const silenceAnalyserBuf = new Uint8Array(64);
+
+async function prepareIntroOutroSkip(loaded: LoadedTrack, queueTrack: Track, startSec: number): Promise<void> {
+  activeSkipVideoId = loaded.videoId;
+  activeSkipSegments = [];
+  skippedSegmentKeys.clear();
+  hasRealAudioInTrack = false;
+  silentTailStartMs = 0;
+  silenceAdvanceTriggered = false;
+
+  if (!usePlayer.getState().skipIntroOutro || partyHooks?.inParty()) return;
+
+  const segments = await detectSkipSegments({
+    videoId: loaded.videoId,
+    title: queueTrack.title || loaded.title,
+    artist: artistNames(queueTrack) || loaded.author,
+    album: queueTrack.album?.name ?? null,
+    durationSec: loaded.durationSec || queueTrack.durationSec || 0,
+  });
+
+  // Ensure track hasn't changed while detecting
+  if (activeSkipVideoId !== loaded.videoId || !usePlayer.getState().skipIntroOutro) return;
+  activeSkipSegments = segments;
+
+  // If fresh start (not resuming mid-track) and an intro segment starts near 0s, jump straight past it
+  const audio = getAudio();
+  if (audio && startSec <= 1 && audio.currentTime < 6) {
+    const intro = findActiveSkipSegment(segments, audio.currentTime, skippedSegmentKeys);
+    if (intro && intro.endSec < (audio.duration || loaded.durationSec || Infinity) - 2) {
+      skippedSegmentKeys.add(segmentKey(intro));
+      trackLog.i(`Auto-skipped ${intro.category} (${intro.source}) -> ${intro.endSec.toFixed(1)}s`, loaded.videoId);
+      audio.currentTime = intro.endSec;
+    }
+  }
+}
+
+function maybeSkipIntroOutro(element: HTMLAudioElement): void {
+  const { skipIntroOutro, nowPlaying, repeat } = usePlayer.getState();
+  if (!skipIntroOutro || !nowPlaying || element.paused || partyHooks?.inParty()) return;
+  if (activeSkipVideoId !== nowPlaying.videoId) return;
+
+  const duration = Number.isFinite(element.duration) && element.duration > 0 ? element.duration : nowPlaying.durationSec;
+
+  // Tier 1 & 2: SponsorBlock & Synced Lyrics segments
+  if (activeSkipSegments.length > 0) {
+    const seg = findActiveSkipSegment(activeSkipSegments, element.currentTime, skippedSegmentKeys);
+    if (seg) {
+      skippedSegmentKeys.add(segmentKey(seg));
+      if (duration > 0 && seg.endSec >= duration - 2) {
+        trackLog.i(`Auto-skipping ${seg.category} / end credits (${seg.source}) -> next track`, nowPlaying.videoId);
+        if (repeat === 'one') {
+          element.currentTime = 0;
+        } else {
+          void advance(true).then(intent);
+        }
+        return;
+      }
+      trackLog.i(`Auto-skipped ${seg.category} (${seg.source}) ${seg.startSec.toFixed(1)}s -> ${seg.endSec.toFixed(1)}s`, nowPlaying.videoId);
+      element.currentTime = seg.endSec;
+      return;
+    }
+  }
+
+  // Tier 3: Real-time trailing silence / end-credits detection via Web Audio Analyser
+  const analyser = getActiveAnalyser();
+  if (!analyser || !duration || duration <= 30 || silenceAdvanceTriggered) return;
+
+  analyser.getByteFrequencyData(silenceAnalyserBuf);
+  let maxBin = 0;
+  for (let i = 0; i < 32; i++) {
+    if (silenceAnalyserBuf[i]! > maxBin) maxBin = silenceAnalyserBuf[i]!;
+  }
+
+  if (maxBin > 24) {
+    hasRealAudioInTrack = true;
+    silentTailStartMs = 0;
+    return;
+  }
+
+  if (
+    hasRealAudioInTrack &&
+    maxBin < 6 &&
+    element.currentTime > duration * 0.65 &&
+    duration - element.currentTime > 6
+  ) {
+    const now = Date.now();
+    if (silentTailStartMs === 0) {
+      silentTailStartMs = now;
+    } else if (now - silentTailStartMs >= 4000) {
+      silenceAdvanceTriggered = true;
+      trackLog.i(`Auto-skipping silent end-credits tail at ${element.currentTime.toFixed(1)}s`, nowPlaying.videoId);
+      if (repeat === 'one') {
+        element.currentTime = 0;
+        silenceAdvanceTriggered = false;
+        silentTailStartMs = 0;
+      } else {
+        void advance(true).then(intent);
+      }
+    }
+  } else {
+    silentTailStartMs = 0;
+  }
+}
+
 /** The elements' own events are the source of truth for play state; only the deck in front speaks. */
 function bindElement(deck: Deck, n: number) {
   const element = deck.audio;
@@ -1162,6 +1357,7 @@ function bindElement(deck: Deck, n: number) {
   });
   element.addEventListener('timeupdate', () => {
     if (!inFront()) return;
+    maybeSkipIntroOutro(element);
     maybeCrossfade();
     ensureAutoplay();
     const now = Date.now();

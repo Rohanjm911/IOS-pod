@@ -1,3 +1,9 @@
+import {
+  attachEqualizerToContext,
+  getAudioContext,
+  getActiveAnalyser as getEqAnalyser,
+  resumeAudioContext,
+} from '@/state/equalizer';
 import { AutoDJ, type AutomixHost, type AutoDJSnapshot } from './engine/autodj';
 import { Deck } from './engine/deck';
 import { LoopDeck } from './engine/loopDeck';
@@ -17,6 +23,11 @@ export interface AutomixGraph {
   master: GainNode;
   decks: Deck[];
   dj: AutoDJ;
+  analyser?: AnalyserNode;
+}
+
+export function getActiveAnalyser(): AnalyserNode | null {
+  return getEqAnalyser();
 }
 
 /**
@@ -30,14 +41,18 @@ export function createAutomixGraph(
   host: (decks: Deck[]) => Omit<AutomixHost, 'ctx' | 'loopDecks'>,
   onUpdate?: (snap: AutoDJSnapshot) => void,
 ): AutomixGraph {
-  const ctx = new AudioContext({ latencyHint: 'playback' });
-  void ctx.resume();
+  const ctx = getAudioContext() ?? new AudioContext({ latencyHint: 'playback' });
+  resumeAudioContext();
   const master = new GainNode(ctx, { gain: 1 });
-  master.connect(ctx.destination);
+
+  // Route through Equalizer & Analyser before destination
+  const { outputNode } = attachEqualizerToContext(ctx, master);
+  const analyser = getEqAnalyser() ?? undefined;
+
   const decks = audios.map((audio, n) => new Deck(n === 0 ? 'A' : 'B', ctx, audio, master));
   // the loop mix's stretch decks (AutoMix's own), built the first time a loop mix is prepared
   let loops: Promise<[LoopDeck, LoopDeck]> | null = null;
   const loopDecks = () => (loops ??= Promise.all([LoopDeck.create(ctx, master), LoopDeck.create(ctx, master)]));
   const dj = new AutoDJ({ ctx, loopDecks, ...host(decks) }, onUpdate);
-  return { ctx, master, decks, dj };
+  return { ctx, master, decks, dj, analyser };
 }

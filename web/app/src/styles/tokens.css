@@ -567,3 +567,154 @@
   --systemQuaternary: #ffffff2e;
   --systemQuinary: #ffffff1a;
 }
+
+/* ---- Pure AMOLED Black Mode ---- */
+:root[data-amoled='true']:has(> head > meta[name='color-scheme'][content='dark']) {
+  --pageBG: #000000 !important;
+  --pageBG-rgb: 0, 0, 0 !important;
+  --systemGray6: #080808 !important;
+  --systemGray5: #111111 !important;
+  --systemGray4: #191919 !important;
+  --opaqueShelfBG: #050505 !important;
+  --footerBg: #000000 !important;
+  --glassMaterialBackground: #000000d6 !important;
+  --systemStandardThinMaterialSover: #0a0a0ad4 !important;
+  --systemStandardThickMaterialSover: #050505f0 !important;
+  --systemHeaderMaterialSover: #000000f5 !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-amoled='true']:not(:has(> head > meta[name='color-scheme'][content='light'])) {
+    --pageBG: #000000 !important;
+    --pageBG-rgb: 0, 0, 0 !important;
+    --systemGray6: #080808 !important;
+    --systemGray5: #111111 !important;
+    --systemGray4: #191919 !important;
+    --opaqueShelfBG: #050505 !important;
+    --footerBg: #000000 !important;
+    --glassMaterialBackground: #000000d6 !important;
+    --systemStandardThinMaterialSover: #0a0a0ad4 !important;
+    --systemStandardThickMaterialSover: #050505f0 !important;
+    --systemHeaderMaterialSover: #000000f5 !important;
+  }
+}
+
+/* ---- Glassmorphism Customization Levels ---- */
+:root[data-glass='frosted'] {
+  --glassMaterialBackdropFilter: saturate(240%) blur(48px) !important;
+}
+:root[data-glass='subtle'] {
+  --glassMaterialBackdropFilter: saturate(140%) blur(12px) !important;
+}
+:root[data-glass='none'] {
+  --glassMaterialBackdropFilter: none !important;
+}
+
+/* ---- Additional iOS Accent Color Presets (Pink, Blue, Orange, Mint) ---- */
+:root[data-theme='pink'] {
+  --keyColor: #e11d48;
+  --keyColor-rgb: 225, 29, 72;
+  --keyColor-rollover: #be123c;
+  --keyColor-pressed: #9f1239;
+  --keyColorBG: #e11d48;
+  --selectionColor: #e11d48;
+}
+:root[data-theme='pink']:has(> head > meta[name='color-scheme'][content='dark']) {
+  --keyColor: #fb7185;
+  --keyColor-rgb: 251, 113, 133;
+  --keyColor-rollover: #f43f5e;
+  --keyColor-pressed: #e11d48;
+  --keyColorBG: #e11d48;
+  --selectionColor: #be123c;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='pink']:not(:has(> head > meta[name='color-scheme'][content='light'])) {
+    --keyColor: #fb7185;
+    --keyColor-rgb: 251, 113, 133;
+    --keyColor-rollover: #f43f5e;
+    --keyColor-pressed: #e11d48;
+    --keyColorBG: #e11d48;
+    --selectionColor: #be123c;
+  }
+}
+
+:root[data-theme='blue'] {
+  --keyColor: #007aff;
+  --keyColor-rgb: 0, 122, 255;
+  --keyColor-rollover: #0062cc;
+  --keyColor-pressed: #004fb0;
+  --keyColorBG: #007aff;
+  --selectionColor: #007aff;
+}
+:root[data-theme='blue']:has(> head > meta[name='color-scheme'][content='dark']) {
+  --keyColor: #60a5fa;
+  --keyColor-rgb: 96, 165, 250;
+  --keyColor-rollover: #3b82f6;
+  --keyColor-pressed: #2563eb;
+  --keyColorBG: #007aff;
+  --selectionColor: #1d4ed8;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='blue']:not(:has(> head > meta[name='color-scheme'][content='light'])) {
+    --keyColor: #60a5fa;
+    --keyColor-rgb: 96, 165, 250;
+    --keyColor-rollover: #3b82f6;
+    --keyColor-pressed: #2563eb;
+    --keyColorBG: #007aff;
+    --selectionColor: #1d4ed8;
+  }
+}
+
+:root[data-theme='orange'] {
+  --keyColor: #ea580c;
+  --keyColor-rgb: 234, 88, 12;
+  --keyColor-rollover: #c2410c;
+  --keyColor-pressed: #9a3412;
+  --keyColorBG: #ea580c;
+  --selectionColor: #ea580c;
+}
+:root[data-theme='orange']:has(> head > meta[name='color-scheme'][content='dark']) {
+  --keyColor: #fb923c;
+  --keyColor-rgb: 251, 146, 60;
+  --keyColor-rollover: #f97316;
+  --keyColor-pressed: #ea580c;
+  --keyColorBG: #ea580c;
+  --selectionColor: #c2410c;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='orange']:not(:has(> head > meta[name='color-scheme'][content='light'])) {
+    --keyColor: #fb923c;
+    --keyColor-rgb: 251, 146, 60;
+    --keyColor-rollover: #f97316;
+    --keyColor-pressed: #ea580c;
+    --keyColorBG: #ea580c;
+    --selectionColor: #c2410c;
+  }
+}
+
+:root[data-theme='mint'] {
+  --keyColor: #059669;
+  --keyColor-rgb: 5, 150, 105;
+  --keyColor-rollover: #047857;
+  --keyColor-pressed: #065f46;
+  --keyColorBG: #059669;
+  --selectionColor: #059669;
+}
+:root[data-theme='mint']:has(> head > meta[name='color-scheme'][content='dark']) {
+  --keyColor: #34d399;
+  --keyColor-rgb: 52, 211, 153;
+  --keyColor-rollover: #10b981;
+  --keyColor-pressed: #059669;
+  --keyColorBG: #059669;
+  --selectionColor: #047857;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='mint']:not(:has(> head > meta[name='color-scheme'][content='light'])) {
+    --keyColor: #34d399;
+    --keyColor-rgb: 52, 211, 153;
+    --keyColor-rollover: #10b981;
+    --keyColor-pressed: #059669;
+    --keyColorBG: #059669;
+    --selectionColor: #047857;
+  }
+}

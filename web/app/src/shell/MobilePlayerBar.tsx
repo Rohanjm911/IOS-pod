@@ -15,9 +15,9 @@ export function MobilePlayerBar() {
   const nowPlaying = usePlayer((s) => s.nowPlaying);
   const status = usePlayer((s) => s.status);
   const playing = status === 'playing' || status === 'buffering';
-  const hasNext = usePlayer((s) => s.index + 1 < s.queue.length || s.repeat !== 'off' || (s.autoplay && s.index >= 0));
   const { togglePlay, next } = usePlayer.getState();
   const setFullScreen = useUi((s) => s.setFullScreen);
+  const playerStyle = useUi((s) => s.playerStyle);
   const video = useHasVideo(nowPlaying?.videoId);
   const barRef = useRef<HTMLDivElement>(null);
 
@@ -48,7 +48,15 @@ export function MobilePlayerBar() {
       }}
     >
       <div
-        className="glass-pill pointer-events-auto relative flex h-(--mini-player-height) w-full max-w-[540px] items-center gap-2.5 overflow-hidden rounded-[16px] pr-1.5 pl-2.5"
+        className={`glass-pill pointer-events-auto relative flex w-full max-w-[540px] items-center gap-2.5 overflow-hidden pr-1.5 pl-2.5 transition-all duration-300 ${
+          playerStyle === 'compact'
+            ? 'h-[48px] rounded-full'
+            : playerStyle === 'dock'
+              ? 'h-(--mini-player-height) rounded-[10px] border border-white/15'
+              : playerStyle === 'neon'
+                ? 'h-(--mini-player-height) rounded-[16px] border border-key/50 shadow-[0_0_22px_-4px_color-mix(in_srgb,var(--keyColor)_45%,transparent)]'
+                : 'h-(--mini-player-height) rounded-[16px]'
+        }`}
         role="region"
         aria-label="Player"
       >
@@ -90,7 +98,7 @@ export function MobilePlayerBar() {
           <button
             className="grid size-11 place-items-center rounded-full text-primary active:scale-90 disabled:opacity-40"
             aria-label="Next"
-            disabled={!hasNext}
+            disabled={!nowPlaying}
             onClick={next}
           >
             <ForwardIcon size={24} />

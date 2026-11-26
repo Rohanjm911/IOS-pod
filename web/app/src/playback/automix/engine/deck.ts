@@ -9,6 +9,7 @@
 // the worklet did sample-accurately, a phase-lock servo does here: while a
 // transition is in flight the element is held on its timeline by nudging its
 // pitch-preserving playbackRate, or by a seek when it is far off.
+import { getOrCreateMediaElementSource } from '@/state/equalizer';
 import { ThreeBandEQ } from './eq';
 import { Timeline } from './timeline';
 
@@ -86,7 +87,7 @@ export class Deck {
       highpass: new BiquadFilterNode(ctx, { type: 'highpass', frequency: 20, Q: 0.7 }),
       lowpass: new BiquadFilterNode(ctx, { type: 'lowpass', frequency: 20000, Q: 0.7 }),
     };
-    ctx.createMediaElementSource(audio).connect(this.eq.input);
+    getOrCreateMediaElementSource(ctx, audio).connect(this.eq.input);
     this.eq.output.connect(this.sweep.highpass).connect(this.sweep.lowpass).connect(this.gain).connect(this.fader).connect(destination);
     audio.preservesPitch = true;
   }

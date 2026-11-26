@@ -30,6 +30,7 @@ export function LyricsSettings({ onClose }: { onClose: () => void }) {
     autoTranslate,
     translateLang,
     paxsenixKey,
+    syncOffsetMs,
     setEnabled,
     move,
     setPreferSyllables,
@@ -37,6 +38,7 @@ export function LyricsSettings({ onClose }: { onClose: () => void }) {
     setAutoTranslate,
     setTranslateLang,
     setPaxsenixKey,
+    setSyncOffsetMs,
     reset,
   } = useLyricsSettings();
   const [granted, setGranted] = useState<string[] | null>(null);
@@ -130,6 +132,31 @@ export function LyricsSettings({ onClose }: { onClose: () => void }) {
                 onChange={(e) => setSyncedOnly(e.currentTarget.checked)}
               />
             </label>
+          </div>
+
+          <h3 className={section}>Timing & Latency Sync</h3>
+          <p className={note}>Compensate for audio output delay (Bluetooth, speakers, headphones) so words light up right on time.</p>
+          <div className={`${group} p-3.5`}>
+            <div className="flex items-center justify-between pb-2">
+              <span className="type-body-emphasized">Sync Offset Compensation</span>
+              <span className="type-callout-medium text-key tabular-nums">
+                {syncOffsetMs > 0 ? `+${syncOffsetMs}ms (Ahead)` : syncOffsetMs < 0 ? `${syncOffsetMs}ms (Behind)` : '0ms (Exact)'}
+              </span>
+            </div>
+            <input
+              type="range"
+              min="-200"
+              max="600"
+              step="25"
+              value={syncOffsetMs}
+              onChange={(e) => setSyncOffsetMs(Number(e.currentTarget.value))}
+              className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-quaternary accent-key"
+            />
+            <div className="flex justify-between pt-2 type-caption-2 text-secondary">
+              <button type="button" className="hover:text-primary cursor-pointer" onClick={() => setSyncOffsetMs(0)}>0ms (Exact)</button>
+              <button type="button" className="hover:text-primary cursor-pointer text-key font-semibold" onClick={() => setSyncOffsetMs(220)}>+220ms (Recommended)</button>
+              <button type="button" className="hover:text-primary cursor-pointer" onClick={() => setSyncOffsetMs(400)}>+400ms (Bluetooth)</button>
+            </div>
           </div>
 
           <h3 className={section}>Translation</h3>
