@@ -1,5 +1,6 @@
 import type { YTMusic, YTNodes } from 'youtubei.js/web';
 import { getBridge } from '@/extension/bridge';
+import { searchExternalTracks } from '@/data/sources/externalSources';
 import type { Candidate } from '@/playback/queue/builder';
 import { getBrowseInnertube, getMusicClient, getSignedInnertube } from '@/playback/youtube/innertube';
 import { isExactArtistMatch, normalizedArtistName } from '@/lib/artistCredits';
@@ -80,16 +81,50 @@ export async function fetchCategories(): Promise<CategoryGroup[]> {
 }
 
 export async function fetchSearch(query: string): Promise<SearchResults> {
-  const yt = await getMusicClient();
-  return mapSearch(await yt.music.search(query));
+  try {
+    const yt = await getMusicClient();
+    const res = mapSearch(await yt.music.search(query));
+    if (res.songs.length > 0 || res.videos.length > 0 || res.albums.length > 0 || res.artists.length > 0) {
+      return res;
+    }
+  } catch {
+    // Fall back to external music sources (Audius + iTunes)
+  }
+  const externalSongs = await searchExternalTracks(query, 15);
+  const songs: MusicItem[] = externalSongs.map((t) => ({
+    kind: 'song',
+    id: t.videoId,
+    title: t.title,
+    subtitle: t.artists.map((a) => a.name).join(', '),
+    artists: t.artists,
+    album: t.album,
+    thumbnail: t.thumbnail,
+    wide: false,
+    durationSec: t.durationSec,
+    explicit: t.explicit,
+  }));
+  return {
+    top: songs.slice(0, 1),
+    songs,
+    videos: [],
+    albums: [],
+    artists: [],
+    playlists: [],
+  };
 }
 
-/** YouTube Music's Songs shelf for [query]: what an import or a match is chosen from. */
+/** YouTube Music's Songs shelf for [query] with external-source fallback. */
 export async function searchSongs(query: string): Promise<Track[]> {
-  const yt = await getMusicClient();
-  const search = await yt.music.search(query, { type: 'song' });
-  const shelf = search.songs ?? search.contents?.find((c) => c.type === 'MusicShelf');
-  return mapPlaylistTracks((shelf as { contents?: readonly unknown[] } | undefined)?.contents ?? []);
+  try {
+    const yt = await getMusicClient();
+    const search = await yt.music.search(query, { type: 'song' });
+    const shelf = search.songs ?? search.contents?.find((c) => c.type === 'MusicShelf');
+    const ytTracks = mapPlaylistTracks((shelf as { contents?: readonly unknown[] } | undefined)?.contents ?? []);
+    if (ytTracks.length > 0) return ytTracks;
+  } catch {
+    // Fall back to external music sources (Audius + iTunes)
+  }
+  return searchExternalTracks(query, 12);
 }
 
 /** Main YouTube video search fallback when a song is not indexed on YouTube Music's Songs shelf. */

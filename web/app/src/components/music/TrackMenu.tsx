@@ -1,4 +1,17 @@
-import { ChevronLeft, ChevronRight, ListEnd, ListPlus, ListStart, MoreHorizontal, Plus, Star } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  ListEnd,
+  ListPlus,
+  ListStart,
+  Moon,
+  MoreHorizontal,
+  Palette,
+  PictureInPicture,
+  Plus,
+  Sliders,
+  Star,
+} from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Menu, MenuHeader, MenuItem, MenuSeparator, type MenuPlacement } from '@/components/Menu';
 import { useLocalLibrary } from '@/data/music/localLibrary';
@@ -11,6 +24,7 @@ import {
 } from '@/data/music/queries';
 import type { Track } from '@/data/music/types';
 import { usePlayer } from '@/state/player';
+import { useUi } from '@/state/ui';
 
 function PlaylistChoices({ track, onDone, onBack }: { track: Track; onDone: () => void; onBack: () => void }) {
   const signedIn = useSignedIn();
@@ -121,6 +135,20 @@ function TrackMenuItems({ track, onClose }: { track: Track; onClose: () => void 
         Add to Queue
       </MenuItem>
       <AccountItems track={track} onClose={onClose} onPlaylists={() => setView('playlists')} />
+      <MenuSeparator />
+      <MenuHeader>Audio & Display</MenuHeader>
+      <MenuItem icon={<Moon size={15} />} onSelect={() => (onClose(), useUi.getState().setSleepTimerOpen(true))}>
+        Sleep Timer
+      </MenuItem>
+      <MenuItem icon={<Sliders size={15} />} onSelect={() => (onClose(), useUi.getState().setEqualizerOpen(true))}>
+        Equalizer & Bass
+      </MenuItem>
+      <MenuItem icon={<Palette size={15} />} onSelect={() => (onClose(), useUi.getState().setThemeModalOpen(true))}>
+        Themes & Colors
+      </MenuItem>
+      <MenuItem icon={<PictureInPicture size={15} />} onSelect={() => (onClose(), useUi.getState().toggleMiniPlayer())}>
+        Mini Player
+      </MenuItem>
     </>
   );
 }

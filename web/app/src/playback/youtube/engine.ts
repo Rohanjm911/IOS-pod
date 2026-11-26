@@ -3,6 +3,7 @@ import { buildSabrFormat } from 'googlevideo/utils';
 import shaka from 'shaka-player/dist/shaka-player.compiled';
 import { Constants, Utils, YT, type Innertube } from 'youtubei.js/web';
 import { resolveAddonStream, type AudioQualityTier, type ResolvedAddonStream } from '@/data/sources/addonClient';
+import { isExternalTrackId, resolveExternalAudioStream } from '@/data/sources/externalSources';
 import { useAddons } from '@/data/sources/addonsStore';
 import { getBridge } from '@/extension/bridge';
 import { getProxyUrl, proxiedUrl } from '@/lib/iosProxy';
@@ -221,7 +222,26 @@ export class YouTubeEngine {
         }
       }
 
-      if (!getBridge() && isProxyBotGated() && typeof window !== 'undefined') {
+      // Built-in non-YouTube source (Audius full MP3 or iTunes) when explicitly selected or when YouTube proxy is bot-gated
+      if (isExternalTrackId(videoId) || (!getBridge() && isProxyBotGated() && hint?.title)) {
+        try {
+          const external = await timed('external source', videoId, () => resolveExternalAudioStream(videoId, hint));
+          this.checkCurrent(generation);
+          if (external) {
+            const track = await this.startAddonStream(videoId, external, startSec, autoplay, generation, quality);
+            trackLog.i(
+              `playing via ${track.client}, ${track.format}, first audio after ${Math.round(performance.now() - started)}ms`,
+              videoId,
+            );
+            return track;
+          }
+        } catch (error) {
+          if (error instanceof SupersededError) throw error;
+          trackLog.w(`external source failed (${describe(error)}); falling back`, videoId);
+        }
+      }
+
+      if (!getBridge() && isProxyBotGated() && typeof window !== 'undefined' && !isExternalTrackId(videoId)) {
         const track = await this.startIframeStream(videoId, startSec, autoplay, generation, hint);
         trackLog.i(`playing via YouTube IFrame after ${Math.round(performance.now() - started)}ms`, track.videoId);
         return track;
@@ -298,9 +318,26 @@ export class YouTubeEngine {
       throw lastError instanceof Error ? lastError : new Error('No YouTube client could stream this track');
     } catch (error) {
       if (error instanceof SupersededError) throw error;
+
+      // Try built-in external audio sources (Audius full MP3) if not already tried
+      if (!isExternalTrackId(videoId) && hint?.title && !(!getBridge() && isProxyBotGated())) {
+        try {
+          const external = await timed('external source', videoId, () => resolveExternalAudioStream(videoId, hint));
+          this.checkCurrent(generation);
+          if (external) {
+            const track = await this.startAddonStream(videoId, external, startSec, autoplay, generation, useAddons.getState().quality);
+            trackLog.i(`playing via fallback ${track.client}, ${track.format}`, videoId);
+            return track;
+          }
+        } catch (extError) {
+          if (extError instanceof SupersededError) throw extError;
+          trackLog.w(`external fallback failed: ${describe(extError)}`, videoId);
+        }
+      }
+
       // When Vercel / proxy IPs are blocked by YouTube ("Sign in to confirm you're not a bot" / 403),
       // fall back to YouTube's official IFrame Player running directly on the user's browser IP.
-      if (!getBridge() && typeof window !== 'undefined') {
+      if (!getBridge() && typeof window !== 'undefined' && !isExternalTrackId(videoId)) {
         try {
           trackLog.i(`direct stream failed (${describe(error)}); falling back to YouTube IFrame player`, videoId);
           const track = await this.startIframeStream(videoId, startSec, autoplay, generation, hint);
@@ -354,13 +391,25 @@ export class YouTubeEngine {
       if (firstError instanceof SupersededError || !hint?.title) throw firstError;
       const { searchSongs, searchMainVideos } = await import('@/data/music/api');
       const query = `${hint.title} ${hint.artist ?? ''}`.trim();
-      let candidates = await searchSongs(query).catch(() => []);
-      if (!candidates.length) candidates = await searchMainVideos(query).catch(() => []);
+      const [songsRes, videosRes] = await Promise.allSettled([
+        searchSongs(query),
+        searchMainVideos(`${query} audio`),
+      ]);
+      const seenIds = new Set<string>([videoId]);
+      const ytCandidates: string[] = [];
+      for (const res of [songsRes, videosRes]) {
+        if (res.status !== 'fulfilled') continue;
+        for (const item of res.value) {
+          if (!item.videoId || seenIds.has(item.videoId) || isExternalTrackId(item.videoId)) continue;
+          seenIds.add(item.videoId);
+          ytCandidates.push(item.videoId);
+        }
+      }
+
       let fallbackResult: { videoId: string; durationSec: number } | null = null;
-      for (const item of candidates) {
-        if (!item.videoId || item.videoId === videoId) continue;
+      for (const altId of ytCandidates.slice(0, 6)) {
         try {
-          fallbackResult = await tryEmbed(item.videoId);
+          fallbackResult = await tryEmbed(altId);
           break;
         } catch (e) {
           if (e instanceof SupersededError) throw e;

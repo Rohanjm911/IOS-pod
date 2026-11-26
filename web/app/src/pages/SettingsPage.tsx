@@ -17,6 +17,7 @@ import { useHistorySettings } from '@/playback/historyReporting';
 import { Select } from '@/components/Select';
 import { AUTOMIX_BARS } from '@/playback/automix/choices';
 import { CROSSFADE_CHOICES, usePlayer } from '@/state/player';
+import { PLAYER_STYLES, useUi } from '@/state/ui';
 import { setAudioOnly, useVideo } from '@/state/video';
 import { AppleMusicIntegration, AppleMusicToggles, CanvasToggle, DiscordIntegration, LyricSourcesAccess, SpotifyIntegration, Toggle } from './IntegrationSettings';
 import { settingsUi } from './settingsStyles';
@@ -262,15 +263,36 @@ function AudioSourcesSettings() {
   );
 }
 
-/** Appearance mode (System/Light/Dark) and live colour-scheme presets. */
+/** Appearance mode (System/Light/Dark), AMOLED black, Glassmorphism, and live colour-scheme presets. */
 function AppearanceThemeSettings() {
-  const { scheme, preset, systemDark, setColorScheme, setThemePreset } = useThemeSettings();
+  const {
+    scheme,
+    preset,
+    amoled,
+    glass,
+    customAccent,
+    systemDark,
+    setColorScheme,
+    setThemePreset,
+    setAmoledBlack,
+    setGlassmorphism,
+    setCustomAccent,
+  } = useThemeSettings();
   const isDarkActive = scheme === 'dark' || (scheme === 'system' && systemDark);
+  const playerStyle = useUi((s) => s.playerStyle);
+  const setPlayerStyle = useUi((s) => s.setPlayerStyle);
   const schemeOptions: { id: ColorSchemeMode; label: string; Icon: typeof Sun }[] = [
     { id: 'system', label: `System · ${systemDark ? 'Dark' : 'Light'}`, Icon: Monitor },
     { id: 'light', label: 'Light', Icon: Sun },
     { id: 'dark', label: 'Dark', Icon: Moon },
   ];
+
+  const glassOptions = [
+    { id: 'default', label: 'Apple Glass (32px)' },
+    { id: 'frosted', label: 'Ultra Frosted (48px)' },
+    { id: 'subtle', label: 'Subtle Glass (12px)' },
+    { id: 'none', label: 'Solid / Flat (0px)' },
+  ] as const;
 
   return (
     <>
@@ -305,9 +327,107 @@ function AppearanceThemeSettings() {
             })}
           </div>
         </div>
+
+        {/* Pure AMOLED Black Mode */}
+        <div className="relative flex items-center justify-between px-4 py-3 hairline-[16px]">
+          <div className="flex min-w-0 flex-1 flex-col pr-4">
+            <div className="flex items-center gap-2">
+              <span className="type-title-3 text-primary">Pure AMOLED Pitch Black</span>
+              <span className="rounded bg-black px-1.5 py-0.5 text-[10px] font-bold text-white border border-white/20">
+                OLED
+              </span>
+            </div>
+            <span className="type-callout text-secondary">
+              True #000000 black background for maximum contrast and battery efficiency on OLED displays.
+            </span>
+          </div>
+          <input
+            type="checkbox"
+            className={settingsUi.switch}
+            aria-label="Pure AMOLED Pitch Black"
+            checked={amoled}
+            onChange={(e) => setAmoledBlack(e.target.checked)}
+          />
+        </div>
+
+        {/* Background Glassmorphism */}
+        <div className="relative flex flex-wrap items-center justify-between gap-3 px-4 py-3 hairline-[16px]">
+          <div className="flex flex-col">
+            <span className="type-title-3 text-primary">Glassmorphism Intensity</span>
+            <span className="type-callout text-secondary">Adjust background blur and translucency.</span>
+          </div>
+          <div className="flex flex-wrap gap-1 rounded-[10px] bg-quaternary p-1">
+            {glassOptions.map((opt) => {
+              const active = glass === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setGlassmorphism(opt.id)}
+                  className={[
+                    'inline-flex h-8 cursor-pointer items-center rounded-[7px] px-2.5 type-callout transition-colors',
+                    active ? 'bg-key-bg font-semibold text-white shadow-sm' : 'text-secondary hover:text-primary',
+                  ].join(' ')}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Player Bar Style */}
+        <div className="relative flex flex-wrap items-center justify-between gap-3 px-4 py-3 hairline-[16px]">
+          <div className="flex flex-col">
+            <span className="type-title-3 text-primary">Player Bar Style</span>
+            <span className="type-callout text-secondary">Switch between Apple Glass, Compact Pill, Studio Dock, and Neon Glow.</span>
+          </div>
+          <div className="flex flex-wrap gap-1 rounded-[10px] bg-quaternary p-1">
+            {PLAYER_STYLES.map((opt) => {
+              const active = playerStyle === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setPlayerStyle(opt.id)}
+                  className={[
+                    'inline-flex h-8 cursor-pointer items-center rounded-[7px] px-2.5 type-callout transition-colors',
+                    active ? 'bg-key-bg font-semibold text-white shadow-sm' : 'text-secondary hover:text-primary',
+                  ].join(' ')}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Custom Accent Color Field */}
+        <div className="relative flex flex-wrap items-center justify-between gap-3 px-4 py-3 hairline-[16px]">
+          <div className="flex flex-col">
+            <span className="type-title-3 text-primary">Custom Accent Color</span>
+            <span className="type-callout text-secondary">Pick any custom hex tint for key buttons and highlights.</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={customAccent}
+              onChange={(e) => setCustomAccent(e.target.value)}
+              className="size-8 rounded-[6px] cursor-pointer bg-transparent border-0 p-0"
+              title="Pick Accent Color"
+            />
+            <span className="font-mono type-callout text-secondary">{customAccent}</span>
+            {preset === 'custom' && (
+              <span className="rounded-[6px] bg-key-bg px-2 py-0.5 type-caption-2 font-semibold text-white">
+                Active
+              </span>
+            )}
+          </div>
+        </div>
+
         <div className="relative p-4 hairline-[16px]">
-          <p className="mb-3 type-callout text-secondary">Accent &amp; Surface Palette</p>
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2" role="group" aria-label="Colour scheme presets">
+          <p className="mb-3 type-callout text-secondary">iOS Color Scheme Presets</p>
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3" role="group" aria-label="Colour scheme presets">
             {THEME_PRESETS.map((p) => {
               const active = preset === p.id;
               const accent = isDarkActive ? p.swatchDark : p.swatchLight;
@@ -365,10 +485,11 @@ export default function SettingsPage() {
   const automix = usePlayer((s) => s.automix);
   const automixBars = usePlayer((s) => s.automixBars);
   const showNerdStats = usePlayer((s) => s.showNerdStats);
+  const skipIntroOutro = usePlayer((s) => s.skipIntroOutro);
   const audioOnly = useVideo((s) => s.audioOnly);
   const shareHistory = useHistorySettings((s) => s.share);
   const setShareHistory = useHistorySettings((s) => s.setShare);
-  const { setAutoplay, setCrossfade, setAutomix, setAutomixBars, setShowNerdStats } = usePlayer.getState();
+  const { setAutoplay, setCrossfade, setAutomix, setAutomixBars, setShowNerdStats, setSkipIntroOutro } = usePlayer.getState();
   const [lyrics, setLyrics] = useState(false);
   const present = extension.state === 'present';
   const discordText =
@@ -481,6 +602,12 @@ export default function SettingsPage() {
               />
             </label>
           )}
+          <Toggle
+            label="Auto-Skip Intros & End Credits"
+            detail="Automatically detects and skips long non-music intros, skits, and end credits using SponsorBlock, synced lyrics, and audio silence."
+            checked={skipIntroOutro}
+            onChange={setSkipIntroOutro}
+          />
           <Toggle
             label="Show Stats for Nerds"
             detail="Codec, bitrate and sample rate under the artist in the full-screen player, and what Automix is doing."

@@ -1,6 +1,10 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { Outlet } from 'react-router';
+import { EqualizerModal } from '@/components/EqualizerModal';
 import { PrefetchLink } from '@/components/PrefetchLink';
+import { SleepTimerModal } from '@/components/SleepTimerModal';
+import { StartupScreen } from '@/components/StartupScreen';
+import { ThemeModal } from '@/components/ThemeModal';
 import { useExtension } from '@/extension/useExtension';
 import { useProxyChecking, useProxyUrl } from '@/lib/iosProxy';
 import { isIosDevice, isPhoneBrowser } from '@/lib/platform';
@@ -11,6 +15,7 @@ import { startHistoryReporting } from '@/playback/historyReporting';
 import { startLivePresence } from '@/playback/livePresence';
 import { useUi } from '@/state/ui';
 import { Banner, bannerButtonClass } from './Banner';
+import { MiniPlayer } from './MiniPlayer';
 import { MobilePlayerBar } from './MobilePlayerBar';
 import { MobileTabBar } from './MobileTabBar';
 import { MobileTopBar } from './MobileTopBar';
@@ -47,6 +52,12 @@ export function AppShell() {
   const bannerDismissed = useUi((s) => s.installBannerDismissed);
   const dismissBanner = useUi((s) => s.dismissInstallBanner);
   const fullScreen = useUi((s) => s.fullScreen);
+  const sleepTimerOpen = useUi((s) => s.sleepTimerOpen);
+  const setSleepTimerOpen = useUi((s) => s.setSleepTimerOpen);
+  const equalizerOpen = useUi((s) => s.equalizerOpen);
+  const setEqualizerOpen = useUi((s) => s.setEqualizerOpen);
+  const themeModalOpen = useUi((s) => s.themeModalOpen);
+  const setThemeModalOpen = useUi((s) => s.setThemeModalOpen);
 
   let banner = null;
   if (ios || phone) {
@@ -99,8 +110,13 @@ export function AppShell() {
         <MobilePlayerBar />
         <MobileTabBar />
         <SidePanel />
+        <MiniPlayer />
       </div>
       {banner}
+      <SleepTimerModal open={sleepTimerOpen} onClose={() => setSleepTimerOpen(false)} />
+      <EqualizerModal open={equalizerOpen} onClose={() => setEqualizerOpen(false)} />
+      <ThemeModal open={themeModalOpen} onClose={() => setThemeModalOpen(false)} />
+      <StartupScreen />
       {fullScreen && (
         <Suspense fallback={null}>
           <FullScreenPlayer />

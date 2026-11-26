@@ -19,6 +19,8 @@ interface LyricsSettings {
   translateLang: string;
   /** PaxSenix's Spotify and Musixmatch routes need the user's own key. */
   paxsenixKey: string;
+  /** Sync timing lead-in offset in ms (e.g. +220ms compensates for audio buffer and vocal lead). */
+  syncOffsetMs: number;
   setEnabled: (id: LyricsSourceId, on: boolean) => void;
   move: (id: LyricsSourceId, by: -1 | 1) => void;
   setPreferSyllables: (on: boolean) => void;
@@ -26,11 +28,15 @@ interface LyricsSettings {
   setAutoTranslate: (on: boolean) => void;
   setTranslateLang: (lang: string) => void;
   setPaxsenixKey: (key: string) => void;
+  setSyncOffsetMs: (offset: number) => void;
   reset: () => void;
 }
 
 const KEY = 'bitchord:lyrics';
-type Saved = Pick<LyricsSettings, 'order' | 'disabled' | 'preferSyllables' | 'syncedOnly' | 'autoTranslate' | 'translateLang' | 'paxsenixKey'>;
+type Saved = Pick<
+  LyricsSettings,
+  'order' | 'disabled' | 'preferSyllables' | 'syncedOnly' | 'autoTranslate' | 'translateLang' | 'paxsenixKey' | 'syncOffsetMs'
+>;
 
 const DEFAULTS: Saved = {
   order: LYRICS_SOURCES.map((s) => s.id),
@@ -41,6 +47,7 @@ const DEFAULTS: Saved = {
   autoTranslate: true,
   translateLang: 'en',
   paxsenixKey: '',
+  syncOffsetMs: 220,
 };
 
 function load(): Saved {
@@ -55,8 +62,8 @@ function load(): Saved {
 export const useLyricsSettings = create<LyricsSettings>()((set, get) => {
   const save = (change: Partial<Saved>) => {
     set(change);
-    const { order, disabled, preferSyllables, syncedOnly, autoTranslate, translateLang, paxsenixKey } = get();
-    localStorage.setItem(KEY, JSON.stringify({ order, disabled, preferSyllables, syncedOnly, autoTranslate, translateLang, paxsenixKey }));
+    const { order, disabled, preferSyllables, syncedOnly, autoTranslate, translateLang, paxsenixKey, syncOffsetMs } = get();
+    localStorage.setItem(KEY, JSON.stringify({ order, disabled, preferSyllables, syncedOnly, autoTranslate, translateLang, paxsenixKey, syncOffsetMs }));
   };
   return {
     ...load(),
@@ -74,6 +81,7 @@ export const useLyricsSettings = create<LyricsSettings>()((set, get) => {
     setAutoTranslate: (autoTranslate) => save({ autoTranslate }),
     setTranslateLang: (translateLang) => save({ translateLang }),
     setPaxsenixKey: (paxsenixKey) => save({ paxsenixKey: paxsenixKey.trim() }),
+    setSyncOffsetMs: (syncOffsetMs) => save({ syncOffsetMs }),
     reset: () => save(DEFAULTS),
   };
 });

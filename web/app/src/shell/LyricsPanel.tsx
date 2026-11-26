@@ -80,60 +80,91 @@ const FAR_LINES =
   ':not(.prev-2):not(.prev-3):not(.next-2):not(.next-3):not(.lyrics-gap) { opacity: 0.46; }';
 
 /**
- * Apple Music-inspired fluid line transitions: active line gently scales up
- * with a soft glow while inactive lines recede with subtle depth blur,
- * clearing immediately on hover for tactile seek feedback.
+ * Apple Music-inspired fluid line transitions: active line gently scales with
+ * a soft luminous radiosity aura, inactive lines step cleanly in opacity without
+ * muddy blur, syllable highlights illuminate smoothly, and hover provides tactile feedback.
  */
 const LYRIC_ANIMATIONS = `
   .lyrics-line {
     transform-origin: left center;
     transition:
-      transform 0.52s cubic-bezier(0.22, 1, 0.36, 1),
-      opacity 0.42s ease,
-      filter 0.45s ease,
-      text-shadow 0.45s ease !important;
+      transform 0.42s cubic-bezier(0.2, 0, 0, 1),
+      opacity 0.38s cubic-bezier(0.2, 0, 0, 1),
+      text-shadow 0.38s cubic-bezier(0.2, 0, 0, 1) !important;
     will-change: transform, opacity;
+    cursor: pointer;
+    border-radius: 10px;
+    padding: 4px 8px;
+    margin: -4px -8px;
   }
+
+  /* Active Lyric Line: Polished, stable Apple Music glow and subtle elevation */
   .lyrics-line.active,
   .lyrics-line.lyrics-activest {
-    transform: scale(1.035) translate3d(0, 0, 0);
-    filter: blur(0px);
-    text-shadow: 0 0 26px rgba(255, 255, 255, 0.3);
+    transform: scale(1.03) translate3d(0, 0, 0);
+    opacity: 1 !important;
+    text-shadow:
+      0 0 20px rgba(255, 255, 255, 0.5),
+      0 0 45px rgba(255, 255, 255, 0.25);
+    filter: none !important;
   }
+
+  /* Immediate neighboring lines: slightly dimmed, crisp and legible */
   .lyrics-line.pre-active,
   .lyrics-line.post-active-line,
   .lyrics-line.next-active-line {
     transform: scale(0.985) translate3d(0, 0, 0);
-    filter: blur(0.45px);
+    opacity: 0.62 !important;
+    filter: none !important;
   }
-  .lyrics-line.prev-2,
-  .lyrics-line.next-2 {
-    transform: scale(0.96) translate3d(0, 0, 0);
-    filter: blur(1px);
+
+  /* Farther lines: clean opacity step, no greasy blur */
+  .lyrics-line:not(.active):not(.pre-active):not(.lyrics-activest):not(.post-active-line):not(.next-active-line):not(.lyrics-gap) {
+    transform: scale(0.97) translate3d(0, 0, 0);
+    opacity: 0.36 !important;
+    filter: none !important;
   }
-  .lyrics-line:not(.active):not(.pre-active):not(.lyrics-activest):not(.post-active-line):not(.next-active-line):not(.prev-2):not(.next-2):not(.lyrics-gap) {
-    transform: scale(0.945) translate3d(0, 0, 0);
-    filter: blur(1.5px);
+
+  /* Tactile interactive hover: gentle brightening without twitching */
+  .lyrics-line:not(.active):hover {
+    opacity: 0.85 !important;
+    background: rgba(255, 255, 255, 0.05);
   }
-  .lyrics-line:hover {
-    filter: blur(0px) !important;
-    opacity: 0.94 !important;
-    transform: scale(1.01) translate3d(0, 0, 0);
+
+  /* Active press feedback on click to seek */
+  .lyrics-line:active {
+    transform: scale(0.985) translate3d(0, 0, 0) !important;
+    transition-duration: 0.1s !important;
   }
+
+  /* Instrumental gap dancing dots: soft gentle pulse */
   .lyrics-gap.active {
-    animation: bitchord-gap-pulse 1.8s ease-in-out infinite;
+    animation: bitchord-gap-pulse 1.6s ease-in-out infinite !important;
   }
   @keyframes bitchord-gap-pulse {
-    0%, 100% { transform: scale(1); opacity: 0.85; }
-    50% { transform: scale(1.06); opacity: 1; }
+    0%, 100% {
+      opacity: 0.7;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.08);
+      filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.5));
+    }
   }
+
+  /* Word-by-word active glow highlight (letting am-lyrics do native smooth sweep) */
+  .lyrics-line.active .lyplus-word.active {
+    text-shadow: 0 0 16px rgba(255, 255, 255, 0.85);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .lyrics-line {
       transition: opacity 0.2s ease !important;
       transform: none !important;
-      filter: none !important;
+      animation: none !important;
     }
-    .lyrics-gap.active { animation: none; }
+    .lyrics-gap.active { animation: none !important; }
   }
 `;
 
@@ -163,6 +194,7 @@ function LyricsView({ ttml, full }: { ttml: string; full: boolean }) {
   const videoId = usePlayer((s) => s.nowPlaying?.videoId);
   const autoTranslate = useLyricsSettings((s) => s.autoTranslate);
   const translateLang = useLyricsSettings((s) => s.translateLang);
+  const syncOffsetMs = useLyricsSettings((s) => s.syncOffsetMs);
   const [displayTtml, setDisplayTtml] = useState(ttml);
 
   useEffect(() => {
@@ -256,7 +288,8 @@ function LyricsView({ ttml, full }: { ttml: string; full: boolean }) {
         const sec = getPlayhead()?.sec ?? last;
         if (sec < last - 0.15 || sec > last + 1) discontinuity++;
         last = sec;
-        el.currentTime = clock.frame(now, Math.trunc(sec * 1000), now, discontinuity);
+        const rawMs = clock.frame(now, Math.trunc(sec * 1000), now, discontinuity);
+        el.currentTime = Math.max(0, rawMs + syncOffsetMs);
         frame = requestAnimationFrame(tick);
       };
       frame = requestAnimationFrame(tick);
@@ -268,14 +301,15 @@ function LyricsView({ ttml, full }: { ttml: string; full: boolean }) {
     const tick = () => {
       const now = performance.now();
       // The reading and its stamp are taken together.
-      el.currentTime = clock.frame(now, Math.trunc(audio.currentTime * 1000), now, discontinuity);
+      const rawMs = clock.frame(now, Math.trunc(audio.currentTime * 1000), now, discontinuity);
+      el.currentTime = Math.max(0, rawMs + syncOffsetMs);
       frame = requestAnimationFrame(tick);
     };
     const hold = () => {
       cancelAnimationFrame(frame);
       const ms = audio.currentTime * 1000;
       clock.hold(ms, performance.now());
-      el.currentTime = ms;
+      el.currentTime = Math.max(0, ms + syncOffsetMs);
     };
     const resume = () => {
       cancelAnimationFrame(frame);
@@ -299,7 +333,7 @@ function LyricsView({ ttml, full }: { ttml: string; full: boolean }) {
       audio.removeEventListener('pause', hold);
       audio.removeEventListener('play', resume);
     };
-  }, [deck, videoId, ttml, mixing]);
+  }, [deck, videoId, ttml, mixing, syncOffsetMs]);
 
   // am-lyrics renders and scrolls itself; it only needs the space. Full screen fades it out at the top and bottom.
   return (

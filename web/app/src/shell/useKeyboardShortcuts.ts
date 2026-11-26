@@ -53,12 +53,19 @@ export function useKeyboardShortcuts() {
         event.preventDefault();
         return focusSearch(navigate);
       }
+      if ((event.key === 'p' || event.key === 'P') && !command) {
+        event.preventDefault();
+        return useUi.getState().toggleMiniPlayer();
+      }
       if (event.key === 'Escape') {
         const ui = useUi.getState();
         // A menu or dialog over the player closes first, on its own.
         if ((event.target as HTMLElement | null)?.closest('[role="menu"], [role="dialog"]:not([data-full-screen])')) return;
-        if (ui.fullScreen) ui.setFullScreen(false);
+        if (ui.sleepTimerOpen) ui.setSleepTimerOpen(false);
+        else if (ui.equalizerOpen) ui.setEqualizerOpen(false);
+        else if (ui.fullScreen) ui.setFullScreen(false);
         else if (ui.sidePanel) ui.closeSidePanel();
+        else if (ui.miniPlayerOpen) ui.setMiniPlayerOpen(false);
         return;
       }
       if (!command) return;

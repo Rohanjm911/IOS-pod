@@ -86,13 +86,17 @@ export function VolumeControl({ open, onOpen, className, iconSize = 20 }: Volume
         aria-label="Volume"
         tabIndex={open ? 0 : -1}
         style={{ '--fill': `${level * 100}%` } as React.CSSProperties}
+        onInput={(e) => setVolume(Number(e.currentTarget.value))}
         onChange={(e) => setVolume(Number(e.currentTarget.value))}
       />
       <button
         className={className}
         aria-label={muted ? 'Unmute' : 'Mute'}
         aria-pressed={muted}
-        onClick={toggleMute}
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleMute();
+        }}
         onPointerEnter={onOpen}
         onFocus={onOpen}
       >
