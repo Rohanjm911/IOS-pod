@@ -39,7 +39,7 @@ describe('playback session persistence', () => {
       }),
     );
 
-    const { getResumePositionSec, usePlayer } = await import('./player');
+    const { getPlayhead, getResumePositionSec, usePlayer } = await import('./player');
     const state = usePlayer.getState();
     expect(state.nowPlaying?.videoId).toBe('vid123');
     expect(state.nowPlaying?.title).toBe('Retained Song');
@@ -47,5 +47,6 @@ describe('playback session persistence', () => {
     expect(state.queue).toHaveLength(1);
     expect(state.status).toBe('paused');
     expect(getResumePositionSec('vid123')).toBe(74);
+    expect(getPlayhead()).toEqual({ sec: 74, paused: true });
   }, 15_000);
 });

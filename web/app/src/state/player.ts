@@ -27,11 +27,17 @@ import {
   type QueueSource,
 } from '@/playback/queue/timeline';
 import { trackLog } from '@/playback/trackLog';
+import {
+  registerBackgroundLifecycle,
+  setBackgroundKeepAlive,
+  unlockBackgroundKeepAlive,
+} from '@/playback/backgroundAudio';
 import type { LoadedTrack, StreamStats, YouTubeEngine } from '@/playback/youtube/engine';
 import type { AutomixGraph, AutoDJSnapshot } from '@/playback/automix';
 import {
   detectSkipSegments,
   findActiveSkipSegment,
+  isYouTubeMusicSource,
   segmentKey,
   type SkipSegment,
 } from '@/playback/introOutroSkip';
@@ -184,7 +190,7 @@ function persistPlaybackSession(explicitPosSec?: number): void {
     const savedIndex = index - start;
     const audio = getAudio();
     const fallback = resumeState?.videoId === nowPlaying.videoId ? resumeState.positionSec : 0;
-    const rawPos = explicitPosSec ?? (audio && Number.isFinite(audio.currentTime) ? audio.currentTime : fallback);
+    const rawPos = explicitPosSec ?? (audio && Number.isFinite(audio.currentTime) && audio.currentTime > 0 ? audio.currentTime : fallback);
     const positionSec = Math.max(0, Math.floor(rawPos));
     localStorage.setItem(
       SESSION_KEY,
@@ -234,6 +240,8 @@ function ensureAudioElements(): [HTMLAudioElement, HTMLAudioElement] {
       // Media from another origin is silent inside an AudioContext unless it
       // is fetched with CORS (prompt §6, the Web Audio caveat).
       audio.crossOrigin = 'anonymous';
+      audio.setAttribute('playsinline', 'true');
+      audio.setAttribute('webkit-playsinline', 'true');
       return audio;
     }) as [HTMLAudioElement, HTMLAudioElement];
   }
@@ -246,6 +254,7 @@ function ensureAudioElements(): [HTMLAudioElement, HTMLAudioElement] {
  */
 function unlockAudioOnGesture() {
   resumeAudioContext();
+  unlockBackgroundKeepAlive();
   if (graph && (graph.ctx.state === 'suspended' || (graph.ctx.state as string) === 'interrupted')) {
     void graph.ctx.resume();
   }
@@ -274,7 +283,11 @@ export function getPlayhead(): { sec: number; paused: boolean } | null {
     const sec = graph.dj.mixPlayhead(nowPlaying.videoId);
     if (sec !== null) return { sec, paused: false };
   }
-  return audio ? { sec: audio.currentTime, paused: audio.paused } : null;
+  if (audio) return { sec: audio.currentTime, paused: audio.paused };
+  if (nowPlaying && resumeState?.videoId === nowPlaying.videoId) {
+    return { sec: resumeState.positionSec, paused: true };
+  }
+  return null;
 }
 
 /** The running Automix blend's beat (phase 0 on the beat), for the seek bar's pulse; null between blends. */
@@ -693,10 +706,11 @@ export const usePlayer = create<PlayerState>()((set, get) => ({
     if (resuming) unlockAudioOnGesture();
     // A listener in a party the host has locked: the press moves this device alone.
     if (partyHooks?.onLockedTransport(resuming)) return;
-    if (!audio || status === 'error') {
+    if (!audio || status === 'error' || (!audio.currentSrc && !audio.src)) {
       // A stopped, restored, or failed track starts again from where it was.
       const savedSec = resumeState?.videoId === nowPlaying.videoId ? resumeState.positionSec : 0;
-      void startAt(index, { startSec: audio?.currentTime ?? savedSec });
+      const startSec = audio && audio.currentTime > 0 ? audio.currentTime : savedSec;
+      void startAt(index, { startSec });
     } else if (audio.paused) {
       // In a party, a resume waits for the instant the server schedules for everyone.
       if (!partyHooks?.shouldDeferPlay()) void audio.play().catch((e: unknown) => trackLog.w(`play() refused: ${String(e)}`));
@@ -1232,6 +1246,7 @@ async function prepareIntroOutroSkip(loaded: LoadedTrack, queueTrack: Track, sta
   silenceAdvanceTriggered = false;
 
   if (!usePlayer.getState().skipIntroOutro || partyHooks?.inParty()) return;
+  if (!isYouTubeMusicSource(loaded.videoId, loaded.client)) return;
 
   const segments = await detectSkipSegments({
     videoId: loaded.videoId,
@@ -1261,6 +1276,7 @@ function maybeSkipIntroOutro(element: HTMLAudioElement): void {
   const { skipIntroOutro, nowPlaying, repeat } = usePlayer.getState();
   if (!skipIntroOutro || !nowPlaying || element.paused || partyHooks?.inParty()) return;
   if (activeSkipVideoId !== nowPlaying.videoId) return;
+  if (!isYouTubeMusicSource(nowPlaying.videoId, nowPlaying.stream?.client)) return;
 
   const duration = Number.isFinite(element.duration) && element.duration > 0 ? element.duration : nowPlaying.durationSec;
 
@@ -1478,6 +1494,16 @@ if (typeof window !== 'undefined') {
   usePlayer.subscribe((state, previous) => {
     if (state.nowPlaying !== previous.nowPlaying || state.queue !== previous.queue || state.index !== previous.index) {
       persistPlaybackSession();
+    }
+    if (state.status !== previous.status) {
+      setBackgroundKeepAlive(state.status === 'playing' || state.status === 'loading');
+    }
+  });
+  registerBackgroundLifecycle(() => {
+    unlockAudioOnGesture();
+    const audio = getAudio();
+    if (audio && audio.paused && usePlayer.getState().status === 'playing') {
+      void audio.play().catch(() => {});
     }
   });
   const saveOnHide = () => {

@@ -7,7 +7,7 @@ import {
   type ColorSchemeMode,
   type GlassmorphismLevel,
 } from '@/lib/theme';
-import { PLAYER_STYLES, useUi } from '@/state/ui';
+import { APP_UI_MODES, BRUTAL_PALETTES, PLAYER_STYLES, useUi } from '@/state/ui';
 
 interface ThemeModalProps {
   open: boolean;
@@ -46,6 +46,13 @@ export function ThemeModal({ open, onClose }: ThemeModalProps) {
   const [hexInput, setHexInput] = useState(customAccent);
   const playerStyle = useUi((s) => s.playerStyle);
   const setPlayerStyle = useUi((s) => s.setPlayerStyle);
+  const uiMode = useUi((s) => s.uiMode);
+  const requestUiModeSwitch = useUi((s) => s.requestUiModeSwitch);
+  const brutalPalette = useUi((s) => s.brutalPalette);
+  const customBrutalPrimary = useUi((s) => s.customBrutalPrimary);
+  const customBrutalSecondary = useUi((s) => s.customBrutalSecondary);
+  const setBrutalPalette = useUi((s) => s.setBrutalPalette);
+  const setCustomBrutalColors = useUi((s) => s.setCustomBrutalColors);
 
   useEffect(() => {
     if (!open) return;
@@ -204,6 +211,93 @@ export function ThemeModal({ open, onClose }: ThemeModalProps) {
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* App UI Look (Triggers Restart with User Input) */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="type-caption-2 text-tertiary uppercase tracking-wider font-semibold">
+                App UI Look
+              </span>
+              <span className="type-caption-2 text-tertiary">Restart required</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {APP_UI_MODES.map((opt) => {
+                const isSelected = uiMode === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => requestUiModeSwitch(opt.id)}
+                    className={`flex flex-col items-start rounded-[12px] p-2.5 border transition-all text-left ${
+                      isSelected
+                        ? 'border-key bg-key/10'
+                        : 'border-divider bg-quinary/60 hover:bg-quaternary'
+                    }`}
+                  >
+                    <span className="type-callout-medium text-primary flex items-center gap-1.5">
+                      {opt.label}
+                      {isSelected && <Check size={14} className="text-key" />}
+                    </span>
+                    <span className="type-caption-2 text-tertiary mt-0.5">{opt.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Dual-Tone Neo-Brutalism Color Picker */}
+            <div className="mt-2.5 flex flex-col gap-2 rounded-[12px] border border-divider bg-quinary/40 p-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="type-caption-2 text-tertiary uppercase tracking-wider font-semibold">
+                  Neo-Brutalism Dual-Tone
+                </span>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-1 type-caption-2 text-secondary cursor-pointer">
+                    <span>T1</span>
+                    <input
+                      type="color"
+                      value={customBrutalPrimary}
+                      onChange={(e) => setCustomBrutalColors(e.target.value, customBrutalSecondary)}
+                      className="size-5 cursor-pointer rounded border-0 bg-transparent p-0"
+                    />
+                  </label>
+                  <label className="flex items-center gap-1 type-caption-2 text-secondary cursor-pointer">
+                    <span>T2</span>
+                    <input
+                      type="color"
+                      value={customBrutalSecondary}
+                      onChange={(e) => setCustomBrutalColors(customBrutalPrimary, e.target.value)}
+                      className="size-5 cursor-pointer rounded border-0 bg-transparent p-0"
+                    />
+                  </label>
+                </div>
+              </div>
+              <div className="grid grid-cols-5 gap-1.5">
+                {BRUTAL_PALETTES.map((p) => {
+                  const active = brutalPalette === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      title={p.label}
+                      onClick={() => setBrutalPalette(p.id)}
+                      className={`flex flex-col items-center gap-1 rounded-[8px] border p-1.5 transition ${
+                        active ? 'border-key bg-quaternary' : 'border-divider bg-quinary/60 hover:bg-quaternary'
+                      }`}
+                    >
+                      <span
+                        className="grid h-4 w-full grid-cols-2 overflow-hidden rounded-[4px] border"
+                        style={{ borderColor: p.ink }}
+                      >
+                        <span style={{ backgroundColor: p.accent }} />
+                        <span style={{ backgroundColor: p.accent2 }} />
+                      </span>
+                      <span className="w-full truncate text-center text-[10px] text-primary">{p.label.split(' ')[0]}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 

@@ -112,6 +112,9 @@ export class IframePlayerAdapter {
   private cachedDuration = 0;
   private isPaused = true;
   private isEnded = false;
+  private userPaused = true;
+  private bgResumeTimer: number | null = null;
+  private bgResumeAttempts = 0;
   private currentVolume: number;
   private isMuted: boolean;
 
@@ -131,6 +134,9 @@ export class IframePlayerAdapter {
     this.cachedDuration = fallbackDurationSec;
     this.isPaused = !autoplay;
     this.isEnded = false;
+    this.userPaused = !autoplay;
+    this.bgResumeAttempts = 0;
+    this.clearBgResume();
 
     // Pause and clear any native audio element source so it never competes with the iframe.
     this.audio.pause();
@@ -235,6 +241,9 @@ export class IframePlayerAdapter {
             if (state === YT.PlayerState.PLAYING) {
               this.isPaused = false;
               this.isEnded = false;
+              this.userPaused = false;
+              this.bgResumeAttempts = 0;
+              this.clearBgResume();
               this.audio.dispatchEvent(new Event('play'));
               this.audio.dispatchEvent(new Event('playing'));
               if (readyDone) finish(dur || this.cachedDuration);
@@ -242,6 +251,25 @@ export class IframePlayerAdapter {
               this.isPaused = true;
               if (typeof this.player?.getCurrentTime === 'function') {
                 this.cachedTime = this.player.getCurrentTime();
+              }
+              // Mobile/desktop browsers sometimes auto-pause background iframes when a tab hides;
+              // recover automatically unless the user explicitly paused.
+              if (
+                typeof document !== 'undefined' &&
+                document.hidden &&
+                !this.userPaused &&
+                !this.isEnded &&
+                this.bgResumeAttempts < 2
+              ) {
+                this.bgResumeAttempts++;
+                this.clearBgResume();
+                this.bgResumeTimer = window.setTimeout(() => {
+                  this.bgResumeTimer = null;
+                  if (!this.disposed && !this.userPaused && !this.isEnded) {
+                    this.player?.playVideo?.();
+                  }
+                }, 150);
+                return;
               }
               this.audio.dispatchEvent(new Event('pause'));
             } else if (state === YT.PlayerState.BUFFERING) {
@@ -347,6 +375,9 @@ export class IframePlayerAdapter {
       value: async () => {
         self.isPaused = false;
         self.isEnded = false;
+        self.userPaused = false;
+        self.bgResumeAttempts = 0;
+        self.clearBgResume();
         if (typeof self.player?.playVideo === 'function') self.player.playVideo();
         audio.dispatchEvent(new Event('play'));
         audio.dispatchEvent(new Event('playing'));
@@ -357,10 +388,19 @@ export class IframePlayerAdapter {
       configurable: true,
       value: () => {
         self.isPaused = true;
+        self.userPaused = true;
+        self.clearBgResume();
         if (typeof self.player?.pauseVideo === 'function') self.player.pauseVideo();
         audio.dispatchEvent(new Event('pause'));
       },
     });
+  }
+
+  private clearBgResume() {
+    if (this.bgResumeTimer !== null) {
+      window.clearTimeout(this.bgResumeTimer);
+      this.bgResumeTimer = null;
+    }
   }
 
   private unmountBridge() {
@@ -377,6 +417,7 @@ export class IframePlayerAdapter {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    this.clearBgResume();
     if (this.tickTimer !== null) {
       window.clearInterval(this.tickTimer);
       this.tickTimer = null;

@@ -13,6 +13,8 @@ import { sourceById, type LyricsSourceId } from '@/lyrics/sources';
 import { translateTtml } from '@/lyrics/translate';
 import { useLyrics, useLyricsUi } from '@/lyrics/useLyrics';
 import { getAudio, getPlayhead, usePlayer } from '@/state/player';
+import { useThemeSettings } from '@/lib/theme';
+import { useUi, type AppUiMode } from '@/state/ui';
 import { LyricsSettings } from './LyricsSettings';
 
 type AmLyricsElement = HTMLElement & {
@@ -38,6 +40,37 @@ const HIDE_FOOTER = '.lyrics-footer { visibility: hidden !important; pointer-eve
 
 /** The phone's lyric typeface (@font-face in styles/global.css), then the app's. */
 const LYRIC_FONT = "'ISOpod SF Pro Display', 'DM Sans', system-ui, sans-serif";
+
+function lyricFontForUi(uiMode: AppUiMode): string {
+  switch (uiMode) {
+    case 'editorial':
+      return "'Playfair Display', Georgia, 'Times New Roman', serif";
+    case 'secondary':
+      return "'DM Sans', 'Arial Black', system-ui, sans-serif";
+    case 'bento':
+      return "-apple-system, BlinkMacSystemFont, 'ISOpod SF Pro Display', 'DM Sans', system-ui, sans-serif";
+    default:
+      return LYRIC_FONT;
+  }
+}
+
+function readLyricColors(uiMode: AppUiMode): { highlight: string; base: string; muted: string } {
+  if (typeof document === 'undefined') {
+    return { highlight: '#ffffff', base: 'rgba(255,255,255,0.92)', muted: 'rgba(255,255,255,0.45)' };
+  }
+  const styles = getComputedStyle(document.documentElement);
+  if (uiMode === 'primary') {
+    return { highlight: '#ffffff', base: 'rgba(255,255,255,0.92)', muted: 'rgba(255,255,255,0.45)' };
+  }
+  const ink = styles.getPropertyValue('--systemPrimary').trim() || '#ffffff';
+  const muted = styles.getPropertyValue('--systemSecondary').trim() || 'rgba(255,255,255,0.55)';
+  const accent = styles.getPropertyValue('--keyColor').trim() || ink;
+  return {
+    highlight: uiMode === 'editorial' || uiMode === 'bento' ? accent : ink,
+    base: ink,
+    muted,
+  };
+}
 
 let lyricFont: Promise<void> | null = null;
 let lyricFontLoaded = false;
@@ -195,6 +228,11 @@ function LyricsView({ ttml, full }: { ttml: string; full: boolean }) {
   const autoTranslate = useLyricsSettings((s) => s.autoTranslate);
   const translateLang = useLyricsSettings((s) => s.translateLang);
   const syncOffsetMs = useLyricsSettings((s) => s.syncOffsetMs);
+  const uiMode = useUi((s) => s.uiMode);
+  const brutalPalette = useUi((s) => s.brutalPalette);
+  const customBrutalPrimary = useUi((s) => s.customBrutalPrimary);
+  const customBrutalSecondary = useUi((s) => s.customBrutalSecondary);
+  const { scheme, preset, amoled } = useThemeSettings();
   const [displayTtml, setDisplayTtml] = useState(ttml);
 
   useEffect(() => {
@@ -222,9 +260,13 @@ function LyricsView({ ttml, full }: { ttml: string; full: boolean }) {
     el.ttml = displayTtml;
     el.interpolate = true;
     el.autoScroll = true;
-    el.highlightColor = '#ffffff';
-    el.fontFamily = LYRIC_FONT;
-    el.className = 'block min-h-0 flex-1 overflow-hidden [--am-lyrics-highlight-color:#fff]';
+    const colors = readLyricColors(uiMode);
+    el.highlightColor = colors.highlight;
+    el.fontFamily = lyricFontForUi(uiMode);
+    el.className = 'block min-h-0 flex-1 overflow-hidden';
+    el.style.setProperty('--am-lyrics-highlight-color', colors.highlight);
+    el.style.setProperty('--lyplus-text-primary', colors.base);
+    el.style.setProperty('--lyplus-text-secondary', colors.muted);
     el.toggleAttribute('data-full', full);
     const onLineClick = (event: Event) => {
       const timestamp = (event as CustomEvent<{ timestamp: number }>).detail?.timestamp;
@@ -260,6 +302,18 @@ function LyricsView({ ttml, full }: { ttml: string; full: boolean }) {
     // Mounted once; a new provider's TTML is handed over below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Sync lyric font and contrast colors whenever UI style, palette, or dark/light theme changes.
+  useEffect(() => {
+    const el = element.current;
+    if (!el) return;
+    const colors = readLyricColors(uiMode);
+    el.fontFamily = lyricFontForUi(uiMode);
+    el.highlightColor = colors.highlight;
+    el.style.setProperty('--am-lyrics-highlight-color', colors.highlight);
+    el.style.setProperty('--lyplus-text-primary', colors.base);
+    el.style.setProperty('--lyplus-text-secondary', colors.muted);
+  }, [uiMode, brutalPalette, customBrutalPrimary, customBrutalSecondary, scheme, preset, amoled]);
 
   useEffect(() => {
     const el = element.current;

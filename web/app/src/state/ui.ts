@@ -5,6 +5,39 @@ export type SidePanel = 'up-next' | 'lyrics' | null;
 export type VisualizerMode = 'off' | 'bars' | 'wave' | 'particles';
 
 export type PlayerStyle = 'apple' | 'compact' | 'dock' | 'neon';
+export type AppUiMode = 'primary' | 'secondary' | 'editorial' | 'bento';
+export type BrutalPaletteId =
+  | 'acid-ink'
+  | 'cyber-cobalt'
+  | 'crimson-cream'
+  | 'tangerine-espresso'
+  | 'mint-obsidian'
+  | 'custom';
+
+export interface BrutalPalette {
+  id: Exclude<BrutalPaletteId, 'custom'>;
+  label: string;
+  bg: string;
+  ink: string;
+  accent: string;
+  accent2: string;
+  isDark: boolean;
+}
+
+export const BRUTAL_PALETTES: readonly BrutalPalette[] = [
+  { id: 'acid-ink', label: 'Acid & Ink', bg: '#F5F2EB', ink: '#0B0B0D', accent: '#D9FF00', accent2: '#FF3D00', isDark: false },
+  { id: 'cyber-cobalt', label: 'Cobalt & Volt', bg: '#EEF2FF', ink: '#090B1A', accent: '#2952FF', accent2: '#FFE600', isDark: false },
+  { id: 'crimson-cream', label: 'Poster Red', bg: '#FFF7ED', ink: '#140B09', accent: '#FF2A3C', accent2: '#00E5A3', isDark: false },
+  { id: 'tangerine-espresso', label: 'Tangerine Dark', bg: '#14110F', ink: '#FFF4E6', accent: '#FF6B00', accent2: '#FFE14D', isDark: true },
+  { id: 'mint-obsidian', label: 'Mint Obsidian', bg: '#0D1110', ink: '#F2FFF9', accent: '#00F5A0', accent2: '#FF4791', isDark: true },
+];
+
+export const APP_UI_MODES: readonly { id: AppUiMode; label: string; description: string }[] = [
+  { id: 'primary', label: 'Glassmorphism', description: 'Apple Frosted Depth & Blur' },
+  { id: 'secondary', label: 'Neo-Brutalism', description: 'Bold Ink & Dual-Tone' },
+  { id: 'editorial', label: 'Editorial Magazine', description: 'Print Serif & Asymmetric Grid' },
+  { id: 'bento', label: 'Bento Grids', description: 'Apple Modular Rounded Tiles' },
+];
 
 export type FullScreenArtStyle = 'classic' | 'vinyl' | 'soft' | 'minimal';
 export type FullScreenBackdrop = 'mesh' | 'amoled' | 'aurora' | 'blur';
@@ -76,17 +109,63 @@ interface UiState {
   fullScreenConfig: FullScreenConfig;
   setFullScreenConfig: (patch: Partial<FullScreenConfig>) => void;
   resetFullScreenConfig: () => void;
+
+  /** Full-app UI mode ('primary' | 'secondary') & restart confirmation flow. */
+  uiMode: AppUiMode;
+  pendingUiMode: AppUiMode | null;
+  requestUiModeSwitch: (mode: AppUiMode) => void;
+  cancelUiModeSwitch: () => void;
+  confirmUiModeSwitchAndRestart: () => void;
+
+  /** Dual-tone Neo-Brutalism palette for Secondary UI. */
+  brutalPalette: BrutalPaletteId;
+  customBrutalPrimary: string;
+  customBrutalSecondary: string;
+  setBrutalPalette: (palette: BrutalPaletteId) => void;
+  setCustomBrutalColors: (primary: string, secondary: string) => void;
 }
 
 const BANNER_KEY = 'isopod:install-banner-dismissed';
 const VISUALIZER_KEY = 'isopod:visualizer-mode';
 const PLAYER_STYLE_KEY = 'isopod:player-style';
 const FULLSCREEN_CONFIG_KEY = 'isopod:fullscreen-config';
+const UI_MODE_KEY = 'isopod:ui-mode';
+const BRUTAL_PALETTE_KEY = 'isopod:brutal-palette';
+const BRUTAL_PRIMARY_KEY = 'isopod:brutal-primary';
+const BRUTAL_SECONDARY_KEY = 'isopod:brutal-secondary';
 
 const initialVisualizer = (localStorage.getItem(VISUALIZER_KEY) as VisualizerMode) || 'bars';
 const savedStyle = localStorage.getItem(PLAYER_STYLE_KEY) as PlayerStyle | null;
 const initialPlayerStyle: PlayerStyle =
   savedStyle && PLAYER_STYLES.some((s) => s.id === savedStyle) ? savedStyle : 'apple';
+const savedUiMode = localStorage.getItem(UI_MODE_KEY) as AppUiMode | null;
+const initialUiMode: AppUiMode =
+  savedUiMode === 'secondary' || savedUiMode === 'editorial' || savedUiMode === 'bento' ? savedUiMode : 'primary';
+const savedBrutal = localStorage.getItem(BRUTAL_PALETTE_KEY) as BrutalPaletteId | null;
+const initialBrutalPalette: BrutalPaletteId =
+  savedBrutal && (savedBrutal === 'custom' || BRUTAL_PALETTES.some((p) => p.id === savedBrutal))
+    ? savedBrutal
+    : 'acid-ink';
+const initialBrutalPrimary = localStorage.getItem(BRUTAL_PRIMARY_KEY) || '#D9FF00';
+const initialBrutalSecondary = localStorage.getItem(BRUTAL_SECONDARY_KEY) || '#FF3D00';
+
+function applyBrutalDom(palette: BrutalPaletteId, primary: string, secondary: string) {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  root.dataset.brutalPalette = palette;
+  if (palette === 'custom') {
+    root.style.setProperty('--brutal-custom-accent', primary);
+    root.style.setProperty('--brutal-custom-accent-2', secondary);
+  } else {
+    root.style.removeProperty('--brutal-custom-accent');
+    root.style.removeProperty('--brutal-custom-accent-2');
+  }
+}
+
+if (typeof document !== 'undefined') {
+  document.documentElement.dataset.uiMode = initialUiMode;
+  applyBrutalDom(initialBrutalPalette, initialBrutalPrimary, initialBrutalSecondary);
+}
 
 function loadFullScreenConfig(): FullScreenConfig {
   try {
@@ -155,6 +234,46 @@ export const useUi = create<UiState>()((set) => ({
   resetFullScreenConfig: () => {
     localStorage.setItem(FULLSCREEN_CONFIG_KEY, JSON.stringify(DEFAULT_FULLSCREEN_CONFIG));
     set({ fullScreenConfig: DEFAULT_FULLSCREEN_CONFIG });
+  },
+
+  uiMode: initialUiMode,
+  pendingUiMode: null,
+  requestUiModeSwitch: (mode) =>
+    set((s) => (s.uiMode === mode ? { pendingUiMode: null } : { pendingUiMode: mode })),
+  cancelUiModeSwitch: () => set({ pendingUiMode: null }),
+  confirmUiModeSwitchAndRestart: () => {
+    const target = useUi.getState().pendingUiMode;
+    if (!target) return;
+    localStorage.setItem(UI_MODE_KEY, target);
+    if (typeof document !== 'undefined') {
+      document.documentElement.dataset.uiMode = target;
+      if (target === 'primary') {
+        document.documentElement.style.removeProperty('--brutal-custom-accent');
+        document.documentElement.style.removeProperty('--brutal-custom-accent-2');
+      }
+    }
+    set({ uiMode: target, pendingUiMode: null, themeModalOpen: false });
+    if (typeof window !== 'undefined') {
+      window.location.reload();
+    }
+  },
+
+  brutalPalette: initialBrutalPalette,
+  customBrutalPrimary: initialBrutalPrimary,
+  customBrutalSecondary: initialBrutalSecondary,
+  setBrutalPalette: (brutalPalette) => {
+    localStorage.setItem(BRUTAL_PALETTE_KEY, brutalPalette);
+    set((s) => {
+      applyBrutalDom(brutalPalette, s.customBrutalPrimary, s.customBrutalSecondary);
+      return { brutalPalette };
+    });
+  },
+  setCustomBrutalColors: (customBrutalPrimary, customBrutalSecondary) => {
+    localStorage.setItem(BRUTAL_PALETTE_KEY, 'custom');
+    localStorage.setItem(BRUTAL_PRIMARY_KEY, customBrutalPrimary);
+    localStorage.setItem(BRUTAL_SECONDARY_KEY, customBrutalSecondary);
+    applyBrutalDom('custom', customBrutalPrimary, customBrutalSecondary);
+    set({ brutalPalette: 'custom', customBrutalPrimary, customBrutalSecondary });
   },
 }));
 

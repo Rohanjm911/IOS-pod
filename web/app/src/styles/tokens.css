@@ -180,8 +180,8 @@
   }
 }
 
-/* Compact phone/tablet-split landscape framing (e.g. 844x390, 667x375). */
-@media (orientation: landscape) and (max-height: 540px) {
+/* Compact phone/tablet-split landscape framing (e.g. 844x390, 932x430, 667x375). */
+@media (orientation: landscape) and (max-height: 580px) {
   :root {
     --web-navigation-width: 204px;
     --body-gutter: 20px;

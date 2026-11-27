@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   detectIntroOutroFromLyrics,
   findActiveSkipSegment,
+  isYouTubeMusicSource,
   mergeSegments,
   segmentKey,
   type SkipSegment,
@@ -63,5 +64,17 @@ describe('introOutroSkip', () => {
     expect(active).not.toBeNull();
     skipped.add(segmentKey(active!));
     expect(findActiveSkipSegment(segments, 5, skipped)).toBeNull();
+  });
+
+  it('enables auto-skip only for YouTube Music source tracks', () => {
+    expect(isYouTubeMusicSource('dQw4w9WgXcQ', 'YTMUSIC')).toBe(true);
+    expect(isYouTubeMusicSource('dQw4w9WgXcQ', 'VISIONOS')).toBe(true);
+    expect(isYouTubeMusicSource('dQw4w9WgXcQ', 'WEB')).toBe(true);
+    expect(isYouTubeMusicSource('dQw4w9WgXcQ', 'Tidal')).toBe(false);
+    expect(isYouTubeMusicSource('dQw4w9WgXcQ', 'Audius')).toBe(false);
+    expect(isYouTubeMusicSource('audius:12345', 'Audius')).toBe(false);
+    expect(isYouTubeMusicSource('itunes:98765', 'iTunes Preview')).toBe(false);
+    expect(isYouTubeMusicSource('addon:qobuz:111', 'Qobuz')).toBe(false);
+    expect(isYouTubeMusicSource('local:track-1', 'Local')).toBe(false);
   });
 });

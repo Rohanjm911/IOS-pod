@@ -1,5 +1,15 @@
 import { endMs, hasKnownEnd, isGap, type LyricLine } from '@/lyrics/model';
 import { lookupLyrics } from '@/lyrics/repository';
+import { isExternalTrackId } from '@/data/sources/externalSources';
+
+const YOUTUBE_CLIENTS = new Set(['VISIONOS', 'IOS', 'ANDROID', 'YTMUSIC', 'WEB', 'MWEB', 'WEB_REMIX', 'TV']);
+
+/** Auto-skip intro/outro is enabled only for YouTube Music source tracks (not Audius, iTunes, Spotify, local, or addon streams). */
+export function isYouTubeMusicSource(videoId: string, client?: string | null): boolean {
+  if (!videoId || isExternalTrackId(videoId) || /^[a-z0-9_-]+:/i.test(videoId)) return false;
+  if (client && !YOUTUBE_CLIENTS.has(client.toUpperCase())) return false;
+  return true;
+}
 
 export interface SkipSegment {
   startSec: number;
