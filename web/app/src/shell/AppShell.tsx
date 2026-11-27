@@ -1,10 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { Outlet } from 'react-router';
-import { EqualizerModal } from '@/components/EqualizerModal';
 import { PrefetchLink } from '@/components/PrefetchLink';
-import { SleepTimerModal } from '@/components/SleepTimerModal';
 import { StartupScreen } from '@/components/StartupScreen';
-import { ThemeModal } from '@/components/ThemeModal';
 import { useExtension } from '@/extension/useExtension';
 import { useProxyChecking, useProxyUrl } from '@/lib/iosProxy';
 import { isIosDevice, isPhoneBrowser } from '@/lib/platform';
@@ -29,6 +26,10 @@ const phone = isPhoneBrowser();
 
 // It carries am-lyrics; loaded the first time it opens, as the side panel's lyrics are.
 const FullScreenPlayer = lazy(() => import('./FullScreenPlayer').then((m) => ({ default: m.FullScreenPlayer })));
+const EqualizerModal = lazy(() => import('@/components/EqualizerModal').then((m) => ({ default: m.EqualizerModal })));
+const SleepTimerModal = lazy(() => import('@/components/SleepTimerModal').then((m) => ({ default: m.SleepTimerModal })));
+const ThemeModal = lazy(() => import('@/components/ThemeModal').then((m) => ({ default: m.ThemeModal })));
+const UiRestartDialog = lazy(() => import('@/components/UiRestartDialog').then((m) => ({ default: m.UiRestartDialog })));
 
 /**
  * The app frame (report §1): glass sidebar, the scrolling page, the floating
@@ -58,6 +59,7 @@ export function AppShell() {
   const setEqualizerOpen = useUi((s) => s.setEqualizerOpen);
   const themeModalOpen = useUi((s) => s.themeModalOpen);
   const setThemeModalOpen = useUi((s) => s.setThemeModalOpen);
+  const pendingUiMode = useUi((s) => s.pendingUiMode);
 
   let banner = null;
   if (ios || phone) {
@@ -99,7 +101,7 @@ export function AppShell() {
         {/* The page scrolls under the fixed sidebar and the floating player. */}
         <main
           id="scrollable-page"
-          className="absolute inset-0 overflow-x-hidden overflow-y-auto overscroll-y-contain pl-[calc(var(--web-navigation-width)+var(--safe-left))] pr-(--safe-right) [scrollbar-gutter:stable] data-tint:bg-(--page-tint) data-tint:transition-[background-color] data-tint:duration-300 data-tint:ease-in max-md:pt-[calc(var(--mobile-top-bar-height)+var(--safe-top))] max-md:pl-(--safe-left)"
+          className="absolute inset-0 overflow-x-hidden overflow-y-auto overscroll-y-contain pl-[calc(var(--web-navigation-width)+var(--safe-left))] pr-(--safe-right) data-tint:bg-(--page-tint) data-tint:transition-[background-color] data-tint:duration-300 data-tint:ease-in max-md:pt-[calc(var(--mobile-top-bar-height)+var(--safe-top))] max-md:pl-(--safe-left)"
         >
           {/* Clears the floating pill / mobile mini-player + bottom tab bar and iOS home indicator. */}
           <div className="min-h-full pb-[calc(var(--player-pill-height)+var(--player-bottom-offset)+var(--safe-bottom)+40px)] max-md:pb-[calc(var(--mobile-tab-bar-height)+var(--mini-player-height)+var(--safe-bottom)+32px)]">
@@ -113,9 +115,26 @@ export function AppShell() {
         <MiniPlayer />
       </div>
       {banner}
-      <SleepTimerModal open={sleepTimerOpen} onClose={() => setSleepTimerOpen(false)} />
-      <EqualizerModal open={equalizerOpen} onClose={() => setEqualizerOpen(false)} />
-      <ThemeModal open={themeModalOpen} onClose={() => setThemeModalOpen(false)} />
+      {sleepTimerOpen && (
+        <Suspense fallback={null}>
+          <SleepTimerModal open={sleepTimerOpen} onClose={() => setSleepTimerOpen(false)} />
+        </Suspense>
+      )}
+      {equalizerOpen && (
+        <Suspense fallback={null}>
+          <EqualizerModal open={equalizerOpen} onClose={() => setEqualizerOpen(false)} />
+        </Suspense>
+      )}
+      {themeModalOpen && (
+        <Suspense fallback={null}>
+          <ThemeModal open={themeModalOpen} onClose={() => setThemeModalOpen(false)} />
+        </Suspense>
+      )}
+      {pendingUiMode && (
+        <Suspense fallback={null}>
+          <UiRestartDialog />
+        </Suspense>
+      )}
       <StartupScreen />
       {fullScreen && (
         <Suspense fallback={null}>

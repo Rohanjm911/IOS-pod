@@ -265,7 +265,17 @@ export function FullScreenPlayer() {
       style={theater && playing && idle ? { cursor: 'none' } : undefined}
     >
       {fullScreenConfig.backdrop === 'mesh' && (
-        <MeshBackdrop artworkUrl={nowPlaying.artworkUrl} playing={playing} />
+        <>
+          <MeshBackdrop artworkUrl={nowPlaying.artworkUrl} playing={playing} />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 -z-2 opacity-65 transition-colors duration-500"
+            style={{
+              background:
+                'radial-gradient(circle at 18% 22%, color-mix(in srgb, var(--keyColor) 36%, transparent), transparent 62%), radial-gradient(circle at 82% 78%, color-mix(in srgb, var(--keyColor) 24%, transparent), transparent 58%)',
+            }}
+          />
+        </>
       )}
       {fullScreenConfig.backdrop === 'amoled' && (
         <div aria-hidden="true" className="absolute inset-0 -z-2 bg-black" />

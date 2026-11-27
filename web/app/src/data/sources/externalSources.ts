@@ -63,6 +63,81 @@ export async function searchAudiusTracks(query: string, limit = 15): Promise<Tra
   }
 }
 
+/** Fetch trending full-length streamable tracks from Audius Discovery Network. */
+export async function fetchAudiusTrendingTracks(limit = 16, genre?: string): Promise<Track[]> {
+  if (typeof fetch !== 'function') return [];
+  try {
+    const params = new URLSearchParams({ app_name: 'ISO-pod', limit: String(limit) });
+    if (genre) params.set('genre', genre);
+    const url = `${AUDIUS_BASE}/tracks/trending?${params.toString()}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+    if (!res.ok) return [];
+    const json = (await res.json()) as { data?: AudiusRawTrack[] };
+    const rows = Array.isArray(json.data) ? json.data : [];
+
+    return rows
+      .filter((r) => Boolean(r.id && r.title))
+      .slice(0, limit)
+      .map((r): Track => ({
+        videoId: `audius:${r.id}`,
+        title: r.title!,
+        artists: [{ name: r.user?.name || r.user?.handle || 'Unknown Artist', id: null }],
+        album: r.genre ? { name: r.genre, id: null } : null,
+        durationSec: typeof r.duration === 'number' && r.duration > 0 ? Math.round(r.duration) : null,
+        explicit: false,
+        thumbnail: r.artwork?.['480x480'] ?? r.artwork?.['150x150'] ?? null,
+        index: null,
+        plays: null,
+      }));
+  } catch {
+    return [];
+  }
+}
+
+interface ItunesRssEntry {
+  id?: { attributes?: { 'im:id'?: string } };
+  'im:name'?: { label?: string };
+  'im:artist'?: { label?: string };
+  'im:collection'?: { 'im:name'?: { label?: string } };
+  'im:image'?: Array<{ label?: string }>;
+}
+
+/** Fetch live Top Songs chart from Apple iTunes RSS feed (no API key or extension required). */
+export async function fetchItunesChartTracks(country: 'in' | 'us' = 'in', limit = 16): Promise<Track[]> {
+  if (typeof fetch !== 'function') return [];
+  try {
+    const url = `${ITUNES_BASE}/${country}/rss/topsongs/limit=${limit}/json`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+    if (!res.ok) return [];
+    const json = (await res.json()) as { feed?: { entry?: ItunesRssEntry[] } };
+    const entries = Array.isArray(json.feed?.entry) ? json.feed.entry : [];
+
+    return entries
+      .filter((e) => Boolean(e.id?.attributes?.['im:id'] && e['im:name']?.label))
+      .slice(0, limit)
+      .map((e): Track => {
+        const id = e.id!.attributes!['im:id']!;
+        const images = e['im:image'] ?? [];
+        const rawArt = images[images.length - 1]?.label ?? null;
+        return {
+          videoId: `itunes:${id}`,
+          title: e['im:name']!.label!,
+          artists: [{ name: e['im:artist']?.label || 'Unknown Artist', id: null }],
+          album: e['im:collection']?.['im:name']?.label
+            ? { name: e['im:collection']['im:name'].label, id: null }
+            : null,
+          durationSec: null,
+          explicit: false,
+          thumbnail: rawArt ? rawArt.replace(/\d+x\d+bb/, '600x600bb') : null,
+          index: null,
+          plays: null,
+        };
+      });
+  } catch {
+    return [];
+  }
+}
+
 /** Search track metadata from iTunes Search API as an alternative catalog source. */
 export async function searchItunesTracks(query: string, limit = 15): Promise<Track[]> {
   if (!query.trim() || typeof fetch !== 'function') return [];

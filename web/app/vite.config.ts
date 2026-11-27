@@ -247,6 +247,37 @@ export default defineConfig({
   // Emscripten glue breaks under dep pre-bundling, and the worker is a module.
   optimizeDeps: { exclude: ['essentia.js'] },
   worker: { format: 'es' },
+  build: {
+    target: 'es2022',
+    chunkSizeWarningLimit: 850,
+    rolldownOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+          if (
+            id.includes('/react/') ||
+            id.includes('/react-dom/') ||
+            id.includes('/react-router/') ||
+            id.includes('/scheduler/') ||
+            id.includes('\\react\\') ||
+            id.includes('\\react-dom\\') ||
+            id.includes('\\react-router\\')
+          ) {
+            return 'vendor-react';
+          }
+          if (id.includes('@tanstack') || id.includes('zustand') || id.includes('/idb/') || id.includes('\\idb\\')) {
+            return 'vendor-state';
+          }
+          if (id.includes('lucide-react') || id.includes('react-icons')) {
+            return 'vendor-icons';
+          }
+          if (id.includes('youtubei.js') || id.includes('bgutils-js') || id.includes('googlevideo')) {
+            return 'vendor-youtube';
+          }
+        },
+      },
+    },
+  },
   server: {
     // The extension's externally_connectable and DNR rules name this origin
     // exactly, so the port must not drift to 5174 when 5173 is busy.

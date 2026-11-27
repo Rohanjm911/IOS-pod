@@ -1,5 +1,5 @@
 import { Maximize2 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { LogoMark } from '@/components/icons/LogoMark';
 import { ExplicitBadge } from '@/components/music/ExplicitBadge';
@@ -8,8 +8,11 @@ import { albumHref, artistHref } from '@/components/music/links';
 import { PrefetchLink } from '@/components/PrefetchLink';
 import { artistCredits, creditSegments } from '@/lib/artistCredits';
 import { sizedArtwork } from '@/lib/artwork';
+import { parseTtml } from '@/lyrics/parse';
+import { useLyricsSettings } from '@/lyrics/settings';
+import { useLyrics } from '@/lyrics/useLyrics';
 import type { Track } from '@/data/music/types';
-import { usePlayer } from '@/state/player';
+import { getPlayhead, usePlayer } from '@/state/player';
 import { useUi } from '@/state/ui';
 import { useHasVideo } from '@/state/video';
 import { albumPageFor, artistPageFor } from './nowPlayingLinks';
@@ -92,12 +95,55 @@ export function Credits({
 // As wide as the name, so only the name opens the album.
 const titleClass = 'min-w-0 max-w-full self-start truncate type-body-emphasized';
 
+/** Tracks the active single synced lyric line for the floating PlayerBar LCD. */
+function useLiveLyricLine(videoId: string | null, playing: boolean): { key: number; text: string } | null {
+  const lyrics = useLyrics();
+  const syncOffsetMs = useLyricsSettings((s) => s.syncOffsetMs);
+  const [active, setActive] = useState<{ key: number; text: string } | null>(null);
+
+  const lines = useMemo(() => {
+    if (!lyrics.data?.synced || !lyrics.data?.ttml) return [];
+    return parseTtml(lyrics.data.ttml);
+  }, [lyrics.data?.synced, lyrics.data?.ttml]);
+
+  useEffect(() => {
+    if (!videoId || lines.length === 0) {
+      setActive(null);
+      return;
+    }
+    const update = () => {
+      const sec = getPlayhead()?.sec ?? 0;
+      const ms = sec * 1000 + 200 + syncOffsetMs;
+      let found: { key: number; text: string } | null = null;
+      for (let i = 0; i < lines.length; i++) {
+        const l = lines[i]!;
+        if (l.timeMs <= ms) {
+          const text = l.text.trim();
+          found = text ? { key: l.timeMs, text } : null;
+        } else {
+          break;
+        }
+      }
+      setActive((prev) => (prev?.key === found?.key && prev?.text === found?.text ? prev : found));
+    };
+
+    update();
+    if (!playing) return;
+    const id = window.setInterval(update, 180);
+    return () => window.clearInterval(id);
+  }, [videoId, lines, playing, syncOffsetMs]);
+
+  return active;
+}
+
 /** The now-playing tile inside the pill (report §1, "LCD"). */
 export function Lcd() {
   const nowPlaying = usePlayer((s) => s.nowPlaying);
   const status = usePlayer((s) => s.status);
   const error = usePlayer((s) => s.error);
   const openFullScreen = useUi((s) => s.setFullScreen);
+  const playing = status === 'playing' || status === 'buffering';
+  const liveLyric = useLiveLyricLine(nowPlaying?.videoId ?? null, playing);
   // The queue's row for what's playing: it carries the album and each artist's channel.
   const track = usePlayer((s) => {
     const entry = s.queue[s.index]?.track;
@@ -167,6 +213,15 @@ export function Lcd() {
         )}
         {status === 'error' ? (
           <span className="truncate type-callout-medium text-key">{error}</span>
+        ) : liveLyric ? (
+          <span
+            key={liveLyric.key}
+            className="truncate type-callout-medium text-primary/85 animate-[lcd-lyric-in_280ms_cubic-bezier(0.22,1,0.36,1)_both] motion-reduce:animate-none"
+            title={liveLyric.text}
+          >
+            <span className="mr-1 text-key" aria-hidden="true">♪</span>
+            {liveLyric.text}
+          </span>
         ) : (
           <span className="truncate type-callout-medium text-secondary">
             {artist ? <Credits videoId={videoId} line={artist} artists={track?.artists ?? []} /> : status === 'loading' ? 'Loading…' : ''}

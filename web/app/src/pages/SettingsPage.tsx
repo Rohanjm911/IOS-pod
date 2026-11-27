@@ -17,7 +17,7 @@ import { useHistorySettings } from '@/playback/historyReporting';
 import { Select } from '@/components/Select';
 import { AUTOMIX_BARS } from '@/playback/automix/choices';
 import { CROSSFADE_CHOICES, usePlayer } from '@/state/player';
-import { PLAYER_STYLES, useUi } from '@/state/ui';
+import { APP_UI_MODES, BRUTAL_PALETTES, PLAYER_STYLES, useUi } from '@/state/ui';
 import { setAudioOnly, useVideo } from '@/state/video';
 import { AppleMusicIntegration, AppleMusicToggles, CanvasToggle, DiscordIntegration, LyricSourcesAccess, SpotifyIntegration, Toggle } from './IntegrationSettings';
 import { settingsUi } from './settingsStyles';
@@ -281,6 +281,13 @@ function AppearanceThemeSettings() {
   const isDarkActive = scheme === 'dark' || (scheme === 'system' && systemDark);
   const playerStyle = useUi((s) => s.playerStyle);
   const setPlayerStyle = useUi((s) => s.setPlayerStyle);
+  const uiMode = useUi((s) => s.uiMode);
+  const requestUiModeSwitch = useUi((s) => s.requestUiModeSwitch);
+  const brutalPalette = useUi((s) => s.brutalPalette);
+  const customBrutalPrimary = useUi((s) => s.customBrutalPrimary);
+  const customBrutalSecondary = useUi((s) => s.customBrutalSecondary);
+  const setBrutalPalette = useUi((s) => s.setBrutalPalette);
+  const setCustomBrutalColors = useUi((s) => s.setCustomBrutalColors);
   const schemeOptions: { id: ColorSchemeMode; label: string; Icon: typeof Sun }[] = [
     { id: 'system', label: `System · ${systemDark ? 'Dark' : 'Light'}`, Icon: Monitor },
     { id: 'light', label: 'Light', Icon: Sun },
@@ -296,6 +303,107 @@ function AppearanceThemeSettings() {
 
   return (
     <>
+      <h2 className={settingsUi.sectionHeader}>App UI Look</h2>
+      <section className={settingsUi.group}>
+        <div className="relative flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
+          <div className="flex flex-col">
+            <span className="type-title-3 text-primary">
+              Active Interface: {APP_UI_MODES.find((m) => m.id === uiMode)?.label ?? 'Glassmorphism'}
+            </span>
+            <span className="type-callout text-secondary">
+              Switch the entire app UI look (asks confirmation &amp; restarts app).
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap gap-1 rounded-[10px] bg-quaternary p-1">
+              {APP_UI_MODES.map((opt) => {
+                const active = uiMode === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => requestUiModeSwitch(opt.id)}
+                    className={[
+                      'inline-flex h-8 cursor-pointer items-center rounded-[7px] px-2.5 type-callout transition-colors',
+                      active ? 'bg-key-bg font-semibold text-white shadow-sm' : 'text-secondary hover:text-primary',
+                    ].join(' ')}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const idx = APP_UI_MODES.findIndex((m) => m.id === uiMode);
+                const next = APP_UI_MODES[(idx + 1) % APP_UI_MODES.length]?.id ?? 'primary';
+                requestUiModeSwitch(next);
+              }}
+              className="inline-flex h-9 cursor-pointer items-center rounded-[9px] bg-key-bg px-3.5 type-callout-medium text-white shadow-sm hover:opacity-90 transition-opacity"
+            >
+              Switch UI Style
+            </button>
+          </div>
+        </div>
+
+        {/* Neo-Brutalism Dual-Tone Color Scheme Picker */}
+        <div className="relative flex flex-col gap-3 px-4 py-3.5 hairline-[16px]">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-col">
+              <span className="type-title-3 text-primary">Neo-Brutalism — Dual-Tone Colors</span>
+              <span className="type-callout text-secondary">
+                Choose a dual-tone Neo-Brutalism palette or customize Tone 1 &amp; Tone 2 colors.
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1.5 rounded-[8px] bg-quaternary px-2 py-1 type-caption-2 text-primary cursor-pointer">
+                <span>Tone 1</span>
+                <input
+                  type="color"
+                  value={customBrutalPrimary}
+                  onChange={(e) => setCustomBrutalColors(e.target.value, customBrutalSecondary)}
+                  className="size-5 cursor-pointer rounded border-0 bg-transparent p-0"
+                />
+              </label>
+              <label className="flex items-center gap-1.5 rounded-[8px] bg-quaternary px-2 py-1 type-caption-2 text-primary cursor-pointer">
+                <span>Tone 2</span>
+                <input
+                  type="color"
+                  value={customBrutalSecondary}
+                  onChange={(e) => setCustomBrutalColors(customBrutalPrimary, e.target.value)}
+                  className="size-5 cursor-pointer rounded border-0 bg-transparent p-0"
+                />
+              </label>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
+            {BRUTAL_PALETTES.map((p) => {
+              const active = brutalPalette === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setBrutalPalette(p.id)}
+                  className={`flex items-center gap-2 rounded-[10px] border px-2.5 py-2 text-left transition ${
+                    active ? 'border-key bg-quaternary font-semibold' : 'border-divider bg-quinary/60 hover:bg-quaternary'
+                  }`}
+                >
+                  <span
+                    className="grid size-6 shrink-0 grid-cols-2 overflow-hidden rounded-[6px] border"
+                    style={{ borderColor: p.ink }}
+                  >
+                    <span style={{ backgroundColor: p.accent }} />
+                    <span style={{ backgroundColor: p.accent2 }} />
+                  </span>
+                  <span className="truncate type-callout text-primary">{p.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
       <h2 className={settingsUi.sectionHeader}>Appearance &amp; Colour Scheme</h2>
       <section className={settingsUi.group}>
         <div className={`${settingsUi.row} flex-wrap gap-3`}>
@@ -604,7 +712,7 @@ export default function SettingsPage() {
           )}
           <Toggle
             label="Auto-Skip Intros & End Credits"
-            detail="Automatically detects and skips long non-music intros, skits, and end credits using SponsorBlock, synced lyrics, and audio silence."
+            detail="Automatically detects and skips long non-music intros, skits, and end credits for YouTube Music tracks using SponsorBlock, synced lyrics, and audio silence."
             checked={skipIntroOutro}
             onChange={setSkipIntroOutro}
           />
