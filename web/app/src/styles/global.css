@@ -401,7 +401,7 @@
  * system fonts. Its own family name, so a copy installed on a Mac can't stand in.
  */
 @font-face {
-  font-family: 'BitChord SF Pro Display';
+  font-family: 'ISOpod SF Pro Display';
   src: url('../assets/fonts/sf-pro-display-regular.woff2') format('woff2');
   font-weight: 400;
   font-display: block;
@@ -410,7 +410,7 @@
 }
 
 @font-face {
-  font-family: 'BitChord SF Pro Display';
+  font-family: 'ISOpod SF Pro Display';
   src: url('../assets/fonts/sf-pro-display-bold.woff2') format('woff2');
   font-weight: 700;
   font-display: block;
@@ -494,6 +494,7 @@
   a {
     color: inherit;
     text-decoration: none;
+    touch-action: manipulation;
   }
 
   button {
@@ -504,6 +505,7 @@
     padding: 0;
     margin: 0;
     cursor: pointer;
+    touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
   }
 

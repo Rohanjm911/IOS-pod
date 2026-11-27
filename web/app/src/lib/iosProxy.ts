@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { config } from '@/config';
 
-const PROXY_STORAGE_KEY = 'bitchord:yt-proxy-url';
+const PROXY_STORAGE_KEY = 'isopod:yt-proxy-url';
 const BUILTIN_PROXY_PATH = '/api/proxy';
 const listeners = new Set<() => void>();
 

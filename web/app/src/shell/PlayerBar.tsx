@@ -173,15 +173,15 @@ export function PlayerBar() {
       data-panel-open={isPanelOpen}
     >
       <div
-        className={`glass-pill group/pill pointer-events-auto relative grid grid-cols-[176px_minmax(120px,1fr)_auto] items-center px-3.5 sm:px-4 max-lg:grid-cols-[auto_minmax(100px,1fr)_auto] transition-[width,height,border-radius,box-shadow] duration-300 ${styleClasses}`}
+        className={`glass-pill group/pill pointer-events-auto relative grid grid-cols-[176px_minmax(120px,1fr)_auto] items-center overflow-hidden px-3.5 sm:px-4 max-lg:grid-cols-[auto_minmax(120px,1fr)_auto] max-lg:px-2.5 transition-[width,height,border-radius,box-shadow] duration-300 ${styleClasses}`}
         role="region"
         aria-label="Player"
       >
-        <div className="flex shrink-0 items-center justify-between pr-2">
-          <button className={toggle} aria-label="Shuffle" aria-pressed={shuffle} onClick={toggleShuffle}>
+        <div className="flex shrink-0 items-center justify-between pr-2 max-lg:pr-1">
+          <button className={`${toggle} max-lg:hidden`} aria-label="Shuffle" aria-pressed={shuffle} onClick={toggleShuffle}>
             <ShuffleIcon size={26} />
           </button>
-          <div className="flex items-center gap-1 sm:gap-1.5">
+          <div className="flex items-center gap-1 sm:gap-1.5 max-lg:gap-0.5">
             <button className={transport} disabled={!hasTrack} aria-label="Previous" onClick={previous}>
               <BackwardIcon size={24} />
             </button>
@@ -193,7 +193,7 @@ export function PlayerBar() {
             </button>
           </div>
           <button
-            className={toggle}
+            className={`${toggle} max-lg:hidden`}
             aria-label={repeat === 'one' ? 'Repeat one' : repeat === 'all' ? 'Repeat all' : 'Repeat'}
             aria-pressed={repeat !== 'off'}
             onClick={cycleRepeat}
@@ -202,20 +202,20 @@ export function PlayerBar() {
           </button>
         </div>
 
-        <div className="h-full min-w-0 flex-1 px-2 sm:px-4">
+        <div className="h-full min-w-0 flex-1 overflow-hidden px-2 sm:px-3">
           <Lcd />
         </div>
 
         <div
-          className="group/actions relative flex shrink-0 items-center justify-end gap-[7px] sm:gap-[9px]"
+          className="group/actions relative flex shrink-0 items-center justify-end gap-[7px] sm:gap-[9px] max-lg:gap-1"
           data-volume-open={volumeOpen || undefined}
           onPointerLeave={() => setVolumeOpen(false)}
           onBlur={(e) => {
             if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setVolumeOpen(false);
           }}
         >
-          <FavoriteButton videoId={videoId} className={fading} />
-          {track && <TrackMenu track={track} className={fading} placement="above-end" />}
+          <FavoriteButton videoId={videoId} className={`${fading} max-lg:hidden`} />
+          {track && <TrackMenu track={track} className={`${fading} max-lg:hidden`} placement="above-end" />}
 
           {/* Quick Tools menu button: shown on compact/landscape or when side panel is open */}
           <div className={isPanelOpen ? 'flex' : 'flex xl:hidden'}>

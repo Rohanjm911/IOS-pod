@@ -19,7 +19,7 @@ function makeTrack(id: string, title: string): Track {
 
 describe('localLibrary', () => {
   beforeEach(() => {
-    localStorage.removeItem('bitchord:local-library');
+    localStorage.removeItem('isopod:local-library');
     useLocalLibrary.setState({ favorites: [], recentTracks: [], playlists: [] });
   });
 

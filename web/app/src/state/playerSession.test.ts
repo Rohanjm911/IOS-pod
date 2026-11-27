@@ -5,7 +5,7 @@ describe('playback session persistence', () => {
   it('restores last played song, queue, index, and resume position on reload', async () => {
     vi.resetModules();
     localStorage.setItem(
-      'bitchord:playback-session',
+      'isopod:playback-session',
       JSON.stringify({
         index: 0,
         positionSec: 74,

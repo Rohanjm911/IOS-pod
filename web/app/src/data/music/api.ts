@@ -1,6 +1,7 @@
 import type { YTMusic, YTNodes } from 'youtubei.js/web';
 import { getBridge } from '@/extension/bridge';
 import { searchExternalTracks } from '@/data/sources/externalSources';
+import { siteRateLimiter } from '@/lib/rateLimiter';
 import type { Candidate } from '@/playback/queue/builder';
 import { getBrowseInnertube, getMusicClient, getSignedInnertube } from '@/playback/youtube/innertube';
 import { isExactArtistMatch, normalizedArtistName } from '@/lib/artistCredits';
@@ -81,6 +82,7 @@ export async function fetchCategories(): Promise<CategoryGroup[]> {
 }
 
 export async function fetchSearch(query: string): Promise<SearchResults> {
+  await siteRateLimiter.acquire('search').catch(() => {});
   try {
     const yt = await getMusicClient();
     const res = mapSearch(await yt.music.search(query));
@@ -115,6 +117,7 @@ export async function fetchSearch(query: string): Promise<SearchResults> {
 
 /** YouTube Music's Songs shelf for [query] with external-source fallback. */
 export async function searchSongs(query: string): Promise<Track[]> {
+  await siteRateLimiter.acquire('search').catch(() => {});
   try {
     const yt = await getMusicClient();
     const search = await yt.music.search(query, { type: 'song' });

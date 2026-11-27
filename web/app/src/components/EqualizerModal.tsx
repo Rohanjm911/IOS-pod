@@ -148,7 +148,7 @@ export function EqualizerModal({ open, onClose }: EqualizerModalProps) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `bitchord-eq-${preset}.json`;
+      a.download = `isopod-eq-${preset}.json`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
@@ -165,11 +165,11 @@ export function EqualizerModal({ open, onClose }: EqualizerModalProps) {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-(--z-modal) grid animate-fade place-items-center bg-scrim p-3 sm:p-4"
+      className="fixed inset-0 z-(--z-modal) grid animate-fade place-items-center bg-scrim p-3 pb-[max(12px,var(--safe-bottom))] sm:p-4"
       onPointerDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className="flex max-h-[min(780px,calc(100vh-24px))] w-[min(560px,100%)] animate-spring-popup flex-col rounded-[20px] bg-page shadow-glass overflow-hidden border border-divider"
+        className="flex max-h-[min(780px,calc(100dvh-24px))] w-[min(560px,100%)] animate-spring-popup flex-col rounded-[20px] bg-page shadow-glass overflow-hidden border border-divider"
         role="dialog"
         aria-modal="true"
         aria-label="Sound Equalizer"

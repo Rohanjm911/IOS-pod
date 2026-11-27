@@ -127,8 +127,8 @@ interface PlayerState extends Settings {
 
 // ---- Settings, kept across visits ---------------------------------------------------
 
-const SETTINGS_KEY = 'bitchord:player';
-const SESSION_KEY = 'bitchord:playback-session';
+const SETTINGS_KEY = 'isopod:player';
+const SESSION_KEY = 'isopod:playback-session';
 const MAX_SAVED_QUEUE = 40;
 const DEFAULT_SETTINGS: Settings = {
   shuffle: false,
@@ -847,7 +847,7 @@ async function startAt(at: number, { startSec = 0, auto = false, autoplay = true
       index: at,
       nowPlaying: { ...hintOf(entry.track), title: entry.track.title || 'Can’t play this here yet' },
       status: 'error',
-      error: 'Playback needs the BitChord extension or an iOS proxy URL in Settings.',
+      error: 'Playback needs the ISO pod extension or an iOS proxy URL in Settings.',
     });
     return;
   }

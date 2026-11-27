@@ -111,8 +111,8 @@ export const POPULAR_PRESETS: EqPresetConfig[] = [
 export const EQ_PRESETS = POPULAR_PRESETS;
 export type EqPreset = string;
 
-const STORAGE_KEY = 'bitchord:equalizer-config-v2';
-const CUSTOM_PRESETS_KEY = 'bitchord:custom-eq-presets';
+const STORAGE_KEY = 'isopod:equalizer-config-v2';
+const CUSTOM_PRESETS_KEY = 'isopod:custom-eq-presets';
 
 interface SavedEqConfig {
   enabled: boolean;
@@ -316,7 +316,7 @@ export function connectAudioElementToEqualizer(
   try {
     source = getOrCreateMediaElementSource(ctx, audio);
   } catch (err) {
-    console.warn('BitChord Equalizer: MediaElementSource init warning:', err);
+    console.warn('ISO pod Equalizer: MediaElementSource init warning:', err);
     return null;
   }
 

@@ -14,7 +14,7 @@ interface SavedLocalLibrary {
   playlists: LocalPlaylist[];
 }
 
-const STORAGE_KEY = 'bitchord:local-library';
+const STORAGE_KEY = 'isopod:local-library';
 const MAX_RECENT = 100;
 const MAX_FAVORITES = 500;
 

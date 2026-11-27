@@ -404,7 +404,7 @@ export default function LibraryHomePage() {
           ) : (
             <EmptyState
               title="No Listening History Yet"
-              detail="Songs you play on BitChord appear here automatically so you can jump right back in."
+              detail="Songs you play on ISO pod appear here automatically so you can jump right back in."
             />
           )}
         </div>

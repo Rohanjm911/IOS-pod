@@ -32,7 +32,7 @@ interface LyricsSettings {
   reset: () => void;
 }
 
-const KEY = 'bitchord:lyrics';
+const KEY = 'isopod:lyrics';
 type Saved = Pick<
   LyricsSettings,
   'order' | 'disabled' | 'preferSyllables' | 'syncedOnly' | 'autoTranslate' | 'translateLang' | 'paxsenixKey' | 'syncOffsetMs'
