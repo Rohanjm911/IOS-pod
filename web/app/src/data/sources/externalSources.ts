@@ -1,5 +1,6 @@
 import { best, type MatchCandidate, type MatchTarget } from '@/data/match/trackMatcher';
 import type { Track } from '@/data/music/types';
+import { siteRateLimiter } from '@/lib/rateLimiter';
 import type { ResolvedAddonStream } from './addonClient';
 
 const AUDIUS_BASE = 'https://discoveryprovider.audius.co/v1';
@@ -30,14 +31,14 @@ export function isExternalTrackId(videoId: string): boolean {
 }
 
 export function buildAudiusStreamUrl(trackId: string): string {
-  return `${AUDIUS_BASE}/tracks/${encodeURIComponent(trackId)}/stream?app_name=BitChord`;
+  return `${AUDIUS_BASE}/tracks/${encodeURIComponent(trackId)}/stream?app_name=ISO-pod`;
 }
 
 /** Search full-length streamable tracks from Audius Discovery Network. */
 export async function searchAudiusTracks(query: string, limit = 15): Promise<Track[]> {
   if (!query.trim() || typeof fetch !== 'function') return [];
   try {
-    const url = `${AUDIUS_BASE}/tracks/search?query=${encodeURIComponent(query)}&app_name=BitChord`;
+    const url = `${AUDIUS_BASE}/tracks/search?query=${encodeURIComponent(query)}&app_name=ISO-pod`;
     const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
     if (!res.ok) return [];
     const json = (await res.json()) as { data?: AudiusRawTrack[] };
@@ -95,6 +96,11 @@ export async function searchItunesTracks(query: string, limit = 15): Promise<Tra
  * when YouTube search is unavailable or needs broader coverage.
  */
 export async function searchExternalTracks(query: string, limit = 15): Promise<Track[]> {
+  try {
+    await siteRateLimiter.acquire('external');
+  } catch {
+    return [];
+  }
   const [audiusRes, itunesRes] = await Promise.allSettled([
     searchAudiusTracks(query, limit),
     searchItunesTracks(query, Math.min(10, limit)),
@@ -138,7 +144,7 @@ export async function resolveExternalAudioStream(
     let durationSec = hint?.durationSec ?? 0;
 
     try {
-      const res = await fetch(`${AUDIUS_BASE}/tracks/${encodeURIComponent(trackId)}?app_name=BitChord`, {
+      const res = await fetch(`${AUDIUS_BASE}/tracks/${encodeURIComponent(trackId)}?app_name=ISO-pod`, {
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
       if (res.ok) {

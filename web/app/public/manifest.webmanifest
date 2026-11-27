@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "BitChord",
-  "short_name": "BitChord",
-  "description": "Aesthetic YouTube Music Web Player for iPhone, iPad, and Desktop",
+  "name": "ISO pod",
+  "short_name": "ISO pod",
+  "description": "Pure Sound. Pocket Hi-Fi. Aesthetic Music Web Player for iPhone, iPad, and Desktop",
   "start_url": "/home",
   "scope": "/",
   "display": "standalone",

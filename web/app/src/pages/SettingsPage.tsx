@@ -100,7 +100,7 @@ function IosProxySettings() {
             autoCapitalize="off"
             autoCorrect="off"
             spellCheck={false}
-            placeholder="https://bitchord-ios-proxy.workers.dev"
+            placeholder="https://isopod-ios-proxy.workers.dev"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             aria-label="iOS Cloudflare Worker proxy URL"
@@ -526,7 +526,7 @@ export default function SettingsPage() {
           <LinkRow
             to="/extension"
             icon={<Glyph Icon={MdOutlineExtension} color="#636366" />}
-            title="BitChord Extension"
+            title="ISO pod Extension"
             value={present ? `v${extension.extension.info.version}` : 'Not installed'}
           />
         </section>
@@ -535,7 +535,7 @@ export default function SettingsPage() {
             label="Share Listening Activity to YouTube"
             detail={
               present && !extension.extension.info.capabilities.includes('yt.stats')
-                ? 'Update the BitChord extension to share: this version can’t send plays to YouTube.'
+                ? 'Update the ISO pod extension to share: this version can’t send plays to YouTube.'
                 : 'Songs you play here go to your YouTube Music history and shape its recommendations.'
             }
             checked={shareHistory}

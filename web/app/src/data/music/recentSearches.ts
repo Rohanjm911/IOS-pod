@@ -9,7 +9,7 @@ export function recentEntryKey(entry: RecentSearchEntry): string {
   return entry.kind === 'query' ? `q:${entry.text.toLowerCase()}` : `i:${entry.item.id}`;
 }
 
-const STORAGE_KEY = 'bitchord:recent-searches';
+const STORAGE_KEY = 'isopod:recent-searches';
 const MAX_RECENT = 15;
 
 function readStored(): RecentSearchEntry[] {

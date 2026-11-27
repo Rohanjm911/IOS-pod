@@ -78,10 +78,10 @@ interface UiState {
   resetFullScreenConfig: () => void;
 }
 
-const BANNER_KEY = 'bitchord:install-banner-dismissed';
-const VISUALIZER_KEY = 'bitchord:visualizer-mode';
-const PLAYER_STYLE_KEY = 'bitchord:player-style';
-const FULLSCREEN_CONFIG_KEY = 'bitchord:fullscreen-config';
+const BANNER_KEY = 'isopod:install-banner-dismissed';
+const VISUALIZER_KEY = 'isopod:visualizer-mode';
+const PLAYER_STYLE_KEY = 'isopod:player-style';
+const FULLSCREEN_CONFIG_KEY = 'isopod:fullscreen-config';
 
 const initialVisualizer = (localStorage.getItem(VISUALIZER_KEY) as VisualizerMode) || 'bars';
 const savedStyle = localStorage.getItem(PLAYER_STYLE_KEY) as PlayerStyle | null;

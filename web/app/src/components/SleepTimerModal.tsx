@@ -57,11 +57,11 @@ export function SleepTimerModal({ open, onClose }: SleepTimerModalProps) {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-(--z-modal) grid animate-fade place-items-center bg-scrim p-4"
+      className="fixed inset-0 z-(--z-modal) grid animate-fade place-items-center bg-scrim p-3 pb-[max(12px,var(--safe-bottom))] sm:p-4"
       onPointerDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className="flex max-h-[min(640px,calc(100vh-48px))] w-[min(420px,100%)] animate-spring-popup flex-col rounded-[16px] bg-page shadow-glass overflow-hidden"
+        className="flex max-h-[min(640px,calc(100dvh-32px))] w-[min(420px,100%)] animate-spring-popup flex-col rounded-[16px] bg-page shadow-glass overflow-hidden"
         role="dialog"
         aria-modal="true"
         aria-label="Sleep timer"

@@ -53,6 +53,11 @@ function isAllowedProxyHost(hostname: string): boolean {
 }
 
 function localProxyPlugin(): Plugin {
+  const rateBuckets = new Map<string, { count: number; resetAt: number }>();
+  const RATE_WINDOW_MS = 60_000;
+  const MAX_API_REQS = 120;
+  const MAX_MEDIA_REQS = 240;
+
   const mount = (middlewares: {
     use: (
       path: string,
@@ -109,6 +114,32 @@ function localProxyPlugin(): Plugin {
         res.statusCode = 403;
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.end(JSON.stringify({ error: `Host not allowed: ${target.hostname}` }));
+        return;
+      }
+
+      const now = Date.now();
+      const isMedia = Boolean(req.headers.range) || target.hostname.toLowerCase().endsWith('.googlevideo.com');
+      const limit = isMedia ? MAX_MEDIA_REQS : MAX_API_REQS;
+      const clientIp =
+        (typeof req.headers['x-forwarded-for'] === 'string' && req.headers['x-forwarded-for'].split(',')[0]?.trim()) ||
+        req.socket.remoteAddress ||
+        'local';
+      const bucketKey = `${clientIp}:${isMedia ? 'media' : 'api'}`;
+      let bucket = rateBuckets.get(bucketKey);
+      if (!bucket || bucket.resetAt <= now) {
+        bucket = { count: 0, resetAt: now + RATE_WINDOW_MS };
+        rateBuckets.set(bucketKey, bucket);
+      }
+      bucket.count += 1;
+      const resetSec = Math.ceil((bucket.resetAt - now) / 1000);
+      res.setHeader('X-RateLimit-Limit', String(limit));
+      res.setHeader('X-RateLimit-Remaining', String(Math.max(0, limit - bucket.count)));
+      res.setHeader('X-RateLimit-Reset', String(resetSec));
+      if (bucket.count > limit) {
+        res.statusCode = 429;
+        res.setHeader('Retry-After', String(resetSec));
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.end(JSON.stringify({ error: 'Too many requests. Please slow down.', retryAfterSec: resetSec }));
         return;
       }
 

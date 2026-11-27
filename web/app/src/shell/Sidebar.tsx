@@ -182,10 +182,13 @@ export function Sidebar() {
           className="mt-2 flex h-18 items-center justify-between pr-3 pl-5 [@media(orientation:landscape)_and_(max-height:540px)]:mt-0.5 [@media(orientation:landscape)_and_(max-height:540px)]:h-12"
           style={{ paddingLeft: 'max(20px, var(--safe-left))' }}
         >
-          <PrefetchLink to="/home" className="inline-flex items-center gap-2 rounded-[6px] pl-1" aria-label="BitChord, Home" onClick={close}>
+          <PrefetchLink to="/home" className="inline-flex items-center gap-2 rounded-[6px] pl-1" aria-label="ISO pod, Home" onClick={close}>
             {/* White on dark, as Apple's own wordmark; it follows the label colour so it stays visible in light. */}
             <LogoMark size={22} className="text-primary" />
-            <span className="type-[700_19px/24px] tracking-[-0.01em]">BitChord</span>
+            <span className="flex min-w-0 flex-col leading-none">
+              <span className="type-[700_19px/22px] tracking-[-0.01em]">ISO pod</span>
+              <span className="whitespace-nowrap text-[9.5px] font-medium tracking-[0.06em] text-tertiary uppercase">Pure Sound • Pocket Hi-Fi</span>
+            </span>
           </PrefetchLink>
           <button
             className="hidden size-11 place-items-center rounded-full text-secondary hover:bg-quinary hover:text-primary max-md:grid"
@@ -217,7 +220,7 @@ export function Sidebar() {
               <span className={icon}>
                 <MdOutlineExtension size={18} />
               </span>
-              <span className={navLabel}>BitChord Extension</span>
+              <span className={navLabel}>ISO pod Extension</span>
               {update.state === 'available' && (
                 <span className="ml-auto rounded-[10px] bg-key px-[7px] py-0.5 type-subhead-emphasized text-white" title={`Version ${update.latest.version} is available`}>
                   Update
@@ -227,7 +230,7 @@ export function Sidebar() {
           )}
           <AccountButton />
           <div className="flex items-center justify-between">
-            <span className="ps-1 type-callout text-secondary">{ios ? 'iOS Web App' : 'BitChord Web'}</span>
+            <span className="ps-1 type-callout text-secondary">{ios ? 'ISO pod iOS' : 'ISO pod Web'}</span>
             <PrefetchNavLink to="/settings" className="grid size-8 place-items-center rounded-nav text-secondary hover:bg-quinary hover:text-primary aria-[current=page]:bg-quinary aria-[current=page]:text-primary" aria-label="Settings" title="Settings" onClick={close}>
               <Settings size={17} strokeWidth={1.9} />
             </PrefetchNavLink>

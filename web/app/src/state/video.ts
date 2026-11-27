@@ -29,8 +29,8 @@ interface VideoState {
   audioOnly: boolean;
 }
 
-const QUALITY_KEY = 'bitchord:video-quality';
-const AUDIO_ONLY_KEY = 'bitchord:audio-only';
+const QUALITY_KEY = 'isopod:video-quality';
+const AUDIO_ONLY_KEY = 'isopod:audio-only';
 
 function storedQuality(): VideoQuality {
   const stored = localStorage.getItem(QUALITY_KEY);

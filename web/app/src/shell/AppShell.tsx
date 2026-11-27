@@ -78,7 +78,7 @@ export function AppShell() {
   } else if (extension.state === 'missing' && !proxyUrl && !proxyChecking && !bannerDismissed) {
     banner = (
       <Banner
-        title="Play YouTube Music with the BitChord extension."
+        title="Play YouTube Music with the ISO pod extension."
         detail="Playback, YouTube Music sign-in, Spotify and Discord need the extension. Addons and lyrics work without it."
         action={
           <PrefetchLink className={bannerButtonClass} to="/extension">
@@ -99,7 +99,7 @@ export function AppShell() {
         {/* The page scrolls under the fixed sidebar and the floating player. */}
         <main
           id="scrollable-page"
-          className="absolute inset-0 overflow-x-hidden overflow-y-auto pl-[calc(var(--web-navigation-width)+var(--safe-left))] pr-(--safe-right) [scrollbar-gutter:stable] data-tint:bg-(--page-tint) data-tint:transition-[background-color] data-tint:duration-300 data-tint:ease-in max-md:pt-[calc(var(--mobile-top-bar-height)+var(--safe-top))] max-md:pl-(--safe-left)"
+          className="absolute inset-0 overflow-x-hidden overflow-y-auto overscroll-y-contain pl-[calc(var(--web-navigation-width)+var(--safe-left))] pr-(--safe-right) [scrollbar-gutter:stable] data-tint:bg-(--page-tint) data-tint:transition-[background-color] data-tint:duration-300 data-tint:ease-in max-md:pt-[calc(var(--mobile-top-bar-height)+var(--safe-top))] max-md:pl-(--safe-left)"
         >
           {/* Clears the floating pill / mobile mini-player + bottom tab bar and iOS home indicator. */}
           <div className="min-h-full pb-[calc(var(--player-pill-height)+var(--player-bottom-offset)+var(--safe-bottom)+40px)] max-md:pb-[calc(var(--mobile-tab-bar-height)+var(--mini-player-height)+var(--safe-bottom)+32px)]">

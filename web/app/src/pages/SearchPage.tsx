@@ -139,7 +139,7 @@ function Landing() {
   if (!categories.data) {
     return (
       <div
-        className="mx-(--body-gutter) mt-[46px] mb-8 grid grid-cols-4 gap-5 max-lg:grid-cols-3 max-[607px]:grid-cols-2 max-[607px]:gap-2.5"
+        className="mx-(--body-gutter) mt-[46px] mb-8 grid grid-cols-4 gap-5 xl:grid-cols-5 2xl:grid-cols-6 max-lg:grid-cols-3 max-[607px]:grid-cols-2 max-[607px]:gap-2.5"
         aria-busy="true"
       >
         {Array.from({ length: 12 }, (_, i) => (

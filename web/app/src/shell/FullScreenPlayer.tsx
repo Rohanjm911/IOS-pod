@@ -253,7 +253,7 @@ export function FullScreenPlayer() {
     <div
       // Over everything but menus and dialogs, which portal above it. The on-dark colours come from tokens.css (data-full-screen).
       // --art, the artwork's side: Apple's 461px at 1440px wide, and never taller than the screen leaves room for.
-      className="fixed inset-0 z-[calc(var(--z-contextual-menus)-2)] isolate animate-enter overflow-hidden text-primary [--art:min(32vw,calc(100dvh-330px),720px)] motion-reduce:[animation-name:fade-in] max-md:[--art:min(84vw,calc(100dvh-330px),420px)]"
+      className="fixed inset-0 z-[calc(var(--z-contextual-menus)-2)] isolate animate-enter overflow-hidden text-primary [--art:min(32vw,calc(100dvh-330px),720px)] motion-reduce:[animation-name:fade-in] max-md:[--art:min(78vw,calc(100dvh-350px),380px)]"
       role="dialog"
       aria-modal="true"
       aria-label="Now Playing"
@@ -363,7 +363,7 @@ export function FullScreenPlayer() {
                   column && fullScreenConfig.layout === 'flipped' ? ' md:order-2' : ''
                 }${
                   fullScreenConfig.layout === 'centered'
-                    ? ' rounded-[26px] border border-white/15 bg-black/30 p-5 backdrop-blur-2xl shadow-[0_24px_64px_rgba(0,0,0,0.45)]'
+                    ? ' rounded-[26px] border border-white/15 bg-black/30 p-6 pb-5 max-md:p-5 max-md:pb-4 backdrop-blur-2xl shadow-[0_24px_64px_rgba(0,0,0,0.45)]'
                     : ''
                 }`
           }
@@ -372,7 +372,7 @@ export function FullScreenPlayer() {
           <div className="fullscreen-header-row flex flex-col">
             {/* Shrinks a touch while paused, as Apple's does. Beside a column, stays visible as a compact square above the title on phones. */}
             <div
-              className={`fullscreen-art relative transition-[scale,border-radius] duration-450 ease-[cubic-bezier(0.34,1.3,0.64,1)] motion-reduce:transition-none${
+              className={`fullscreen-art relative mx-auto transition-[scale,border-radius] duration-450 ease-[cubic-bezier(0.34,1.3,0.64,1)] motion-reduce:transition-none${
                 fullScreenConfig.artStyle === 'vinyl'
                   ? ' rounded-full overflow-hidden border-[6px] border-black/75 shadow-[0_16px_48px_rgba(0,0,0,0.65)]'
                   : fullScreenConfig.artStyle === 'soft'
@@ -382,8 +382,10 @@ export function FullScreenPlayer() {
                 fullScreenConfig.artStyle === 'minimal' && !video
                   ? ' w-[88px] max-md:w-[64px]'
                   : column
-                    ? ' w-(--art) max-md:mb-3 max-md:w-[clamp(64px,12dvh,104px)]'
-                    : ' w-(--art)'
+                    ? ' w-full max-md:mb-3 max-md:w-[clamp(64px,12dvh,104px)]'
+                    : fullScreenConfig.layout === 'centered'
+                      ? ' w-full max-w-[calc(var(--art)-48px)]'
+                      : ' w-full'
               }${video ? ' aspect-video overflow-hidden bg-black' : ' aspect-square'}${playing ? '' : ' scale-92'}${theater ? ' hidden' : ''}`}
             >
               {nowPlaying.artworkUrl && (
@@ -398,40 +400,40 @@ export function FullScreenPlayer() {
                     decoding="async"
                     onLoad={(e) => e.currentTarget.setAttribute('data-loaded', '')}
                   />
-                  <img
-                    key={nowPlaying.artworkUrl}
-                    className={`${artworkLayer} bg-[#ffffff12] shadow-[0_4px_10px_#0000001a] data-loaded:opacity-100${
-                      fullScreenConfig.artStyle === 'vinyl' && !video
-                        ? ' animate-[spin_18s_linear_infinite]'
-                        : ''
-                    }`}
+                  <div
+                    className="absolute inset-0 rounded-[inherit]"
                     style={
                       fullScreenConfig.artStyle === 'vinyl' && !video
-                        ? { animationPlayState: playing ? 'running' : 'paused' }
+                        ? { animation: 'spin 14s linear infinite', animationPlayState: playing ? 'running' : 'paused' }
                         : undefined
                     }
-                    src={sizedArtwork(nowPlaying.artworkUrl, 600)}
-                    alt=""
-                    referrerPolicy="no-referrer"
-                    decoding="async"
-                    onLoad={(e) => e.currentTarget.setAttribute('data-loaded', '')}
-                  />
+                  >
+                    <img
+                      key={nowPlaying.artworkUrl}
+                      className={`${artworkLayer} bg-[#ffffff12] shadow-[0_4px_10px_#0000001a] data-loaded:opacity-100`}
+                      src={sizedArtwork(nowPlaying.artworkUrl, 600)}
+                      alt=""
+                      referrerPolicy="no-referrer"
+                      decoding="async"
+                      onLoad={(e) => e.currentTarget.setAttribute('data-loaded', '')}
+                    />
+                    {/* Apple's motion artwork, over the cover once it's playing. */}
+                    {motion && (
+                      <MotionArtwork
+                        key={motion.url}
+                        motion={motion}
+                        className="absolute inset-0 size-full rounded-[inherit] object-cover opacity-0 transition-opacity duration-600 ease-in data-ready:opacity-100"
+                        playing={playing}
+                      />
+                    )}
+                  </div>
                   {fullScreenConfig.artStyle === 'vinyl' && !video && (
                     <div
                       aria-hidden="true"
-                      className="pointer-events-none absolute inset-0 m-auto size-11 rounded-full border-4 border-white/25 bg-black/80 shadow-inner"
+                      className="pointer-events-none absolute inset-0 z-10 m-auto size-11 rounded-full border-4 border-white/25 bg-black/80 shadow-inner"
                     />
                   )}
                 </>
-              )}
-              {/* Apple's motion artwork, over the cover once it's playing. */}
-              {motion && (
-                <MotionArtwork
-                  key={motion.url}
-                  motion={motion}
-                  className="absolute inset-0 size-full rounded-[inherit] object-cover opacity-0 transition-opacity duration-600 ease-in data-ready:opacity-100"
-                  playing={playing}
-                />
               )}
               {video && !theater && <VideoSurface className="absolute inset-0" />}
             </div>
@@ -483,7 +485,7 @@ export function FullScreenPlayer() {
             <Scrubber />
             <Transport />
             {fullScreenConfig.showVisualizer && visualizerMode !== 'off' && (
-              <div className="fullscreen-visualizer-wrap mx-auto mt-2 w-full max-w-[320px] px-2 animate-fade-in">
+              <div className="fullscreen-visualizer-wrap mx-auto mt-3 mb-1 w-full max-w-[320px] px-2 animate-fade-in">
                 <AudioVisualizer mode={visualizerMode} className="w-full h-8" barCount={26} />
               </div>
             )}
@@ -569,7 +571,7 @@ export function FullScreenPlayer() {
       {/* Inline Mochy-Style Full-Screen Customizer Panel */}
       {customizerOpen && (
         <div
-          className="absolute bottom-[max(60px,calc(var(--safe-bottom)+52px))] left-[max(20px,var(--safe-left))] z-30 w-[min(340px,calc(100vw-40px))] animate-spring-popup rounded-[18px] border border-white/15 bg-black/80 p-4 text-primary shadow-[0_24px_64px_rgba(0,0,0,0.65)] backdrop-blur-2xl"
+          className="absolute bottom-[max(60px,calc(var(--safe-bottom)+52px))] left-[max(20px,var(--safe-left))] z-30 max-h-[calc(100dvh-max(76px,calc(var(--safe-top)+var(--safe-bottom)+68px)))] w-[min(340px,calc(100vw-40px))] overflow-y-auto overscroll-contain animate-spring-popup rounded-[18px] border border-white/15 bg-black/85 p-4 text-primary shadow-[0_24px_64px_rgba(0,0,0,0.65)] backdrop-blur-2xl [@media(orientation:landscape)_and_(max-height:540px)]:w-[min(460px,calc(100vw-40px))]"
           role="dialog"
           aria-label="Customize Full Screen Player"
         >

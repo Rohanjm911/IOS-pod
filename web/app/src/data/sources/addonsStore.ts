@@ -94,7 +94,7 @@ export const useAddons = create<AddonsState>()(
       },
     }),
     {
-      name: 'bitchord:addons',
+      name: 'isopod:addons',
       version: 1,
     },
   ),

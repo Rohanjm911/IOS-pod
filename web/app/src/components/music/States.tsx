@@ -16,7 +16,7 @@ export function NeedsExtension({ what = 'YouTube Music' }: { what?: string }) {
       <div className={stateStyles.state}>
         <p className={stateStyles.title}>Connecting to YouTube Music…</p>
         <p className={stateStyles.detail}>
-          BitChord Web is streaming through the built-in edge proxy.
+          ISO pod Web is streaming through the built-in edge proxy.
         </p>
         <PrefetchLink to="/" className={stateStyles.button}>
           Refresh Home

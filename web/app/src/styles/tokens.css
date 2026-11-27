@@ -5,7 +5,7 @@
  * the report by name. Light first, then dark under prefers-color-scheme.
  *
  * Apple serves higher-contrast text alphas and a deeper key colour to browsers
- * without the system SF font. BitChord renders DM Sans everywhere, so those
+ * without the system SF font. ISO pod renders DM Sans everywhere, so those
  * variants are the ones used here (report §9).
  */
 
@@ -47,6 +47,29 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
+}
+
+/* Responsive layout tokens across small phones, tablets, and ultrawide screens. */
+@media (max-width: 420px) {
+  :root {
+    --body-gutter: 16px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  :root {
+    --web-navigation-width: 220px;
+  }
+}
+
+@media (min-width: 1600px) {
+  :root {
+    --body-gutter: clamp(28px, 2.5vw, 48px);
+    --side-panel-width: 340px;
+  }
+}
+
+:root {
 
   /* ---- Radii ------------------------------------------------------------- */
   --radius-artwork-small: 5px; /* 40px track rows, horizontal lockups */

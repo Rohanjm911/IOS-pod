@@ -16,7 +16,7 @@ describe('externalSources', () => {
     expect(isExternalTrackId('itunes:1073359419')).toBe(true);
     expect(isExternalTrackId('dQw4w9WgXcQ')).toBe(false);
     expect(buildAudiusStreamUrl('Wg56v')).toBe(
-      'https://discoveryprovider.audius.co/v1/tracks/Wg56v/stream?app_name=BitChord',
+      'https://discoveryprovider.audius.co/v1/tracks/Wg56v/stream?app_name=ISO-pod',
     );
   });
 

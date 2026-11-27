@@ -73,7 +73,7 @@ export default function LibraryPage() {
         <PageHeader title={title} />
         <EmptyState
           title={title}
-          detail={`Personal ${title} syncs with your Google account when the BitChord desktop extension is active. Your recently played and starred tracks are saved directly in this browser.`}
+          detail={`Personal ${title} syncs with your Google account when the ISO pod desktop extension is active. Your recently played and starred tracks are saved directly in this browser.`}
         />
       </>
     );

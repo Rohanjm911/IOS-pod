@@ -103,6 +103,36 @@ function applyUpstreamHeaders(target, incoming) {
   return headers;
 }
 
+const RATE_WINDOW_MS = 60_000;
+const MAX_API_REQS_PER_WINDOW = 120;
+const MAX_MEDIA_REQS_PER_WINDOW = 240;
+const MAX_RATE_BUCKETS = 2000;
+const rateBuckets = new Map();
+
+function checkRateLimit(request, isMedia) {
+  const now = Date.now();
+  if (rateBuckets.size > MAX_RATE_BUCKETS) {
+    for (const [k, v] of rateBuckets) {
+      if (v.resetAt <= now) rateBuckets.delete(k);
+    }
+    if (rateBuckets.size > MAX_RATE_BUCKETS) rateBuckets.clear();
+  }
+  const ip =
+    request.headers.get('cf-connecting-ip') ||
+    request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+    'anonymous';
+  const limit = isMedia ? MAX_MEDIA_REQS_PER_WINDOW : MAX_API_REQS_PER_WINDOW;
+  const key = `${ip}:${isMedia ? 'media' : 'api'}`;
+  let bucket = rateBuckets.get(key);
+  if (!bucket || bucket.resetAt <= now) {
+    bucket = { count: 0, resetAt: now + RATE_WINDOW_MS };
+    rateBuckets.set(key, bucket);
+  }
+  bucket.count += 1;
+  const resetSec = Math.ceil((bucket.resetAt - now) / 1000);
+  return { allowed: bucket.count <= limit, limit, resetSec };
+}
+
 export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') {
@@ -111,7 +141,7 @@ export default {
 
     const reqUrl = new URL(request.url);
     if (reqUrl.pathname === '/health' || reqUrl.searchParams.get('health') === '1') {
-      return json({ ok: true, service: 'bitchord-ios-proxy' }, 200, request);
+      return json({ ok: true, service: 'isopod-ios-proxy' }, 200, request);
     }
 
     if (env.PROXY_SECRET) {
@@ -135,6 +165,25 @@ export default {
 
     if (target.protocol !== 'https:' || !isAllowedHost(target.hostname)) {
       return json({ error: `Host not allowed: ${target.hostname}` }, 403, request);
+    }
+
+    const isMedia = request.headers.has('range') || target.hostname.toLowerCase().endsWith('.googlevideo.com');
+    const rate = checkRateLimit(request, isMedia);
+    if (!rate.allowed) {
+      return new Response(
+        JSON.stringify({ error: 'Too many requests. Please slow down.', retryAfterSec: rate.resetSec }),
+        {
+          status: 429,
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Retry-After': String(rate.resetSec),
+            'X-RateLimit-Limit': String(rate.limit),
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset': String(rate.resetSec),
+            ...corsHeaders(request),
+          },
+        },
+      );
     }
 
     const method = request.method.toUpperCase();

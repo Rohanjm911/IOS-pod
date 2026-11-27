@@ -100,10 +100,10 @@ export const THEME_PRESETS: readonly ThemePreset[] = [
 ];
 
 const SCHEME_KEY = 'color-scheme';
-const PRESET_KEY = 'bitchord:theme-preset';
-const AMOLED_KEY = 'bitchord:amoled-black';
-const GLASS_KEY = 'bitchord:glassmorphism';
-const CUSTOM_ACCENT_KEY = 'bitchord:custom-accent';
+const PRESET_KEY = 'isopod:theme-preset';
+const AMOLED_KEY = 'isopod:amoled-black';
+const GLASS_KEY = 'isopod:glassmorphism';
+const CUSTOM_ACCENT_KEY = 'isopod:custom-accent';
 
 const listeners = new Set<() => void>();
 

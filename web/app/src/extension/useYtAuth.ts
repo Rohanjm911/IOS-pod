@@ -16,14 +16,14 @@ export const ytAuthQueryKey = ['yt', 'auth'] as const;
 
 export const DUMMY_ACCOUNT = {
   authUser: '0',
-  name: 'BitChord Member',
-  email: 'member@bitchord.app',
+  name: 'ISO pod Member',
+  email: 'member@isopod.app',
   avatarUrl: null,
   channels: [
     {
-      id: 'bitchord-member',
-      name: 'BitChord Member',
-      handle: '@bitchord',
+      id: 'isopod-member',
+      name: 'ISO pod Member',
+      handle: '@isopod',
       avatarUrl: null,
       brand: false,
     },
