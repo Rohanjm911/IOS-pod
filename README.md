@@ -6,7 +6,7 @@
 
 ### **ISO pod** — *Pure Sound. Pocket Hi-Fi.*
 
-[![GitHub Stars](https://img.shields.io/github/stars/Rohanjm911/bitchord-IOS?style=for-the-badge&logo=github&color=gold)](https://github.com/Rohanjm911/bitchord-IOS/stargazers)
+[![GitHub Stars](https://img.shields.io/github/stars/Rohanjm911/IOS-pod?style=for-the-badge&logo=github&color=gold)](https://github.com/Rohanjm911/IOS-pod/stargazers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
@@ -131,8 +131,8 @@
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/Rohanjm911/bitchord-IOS.git
-cd bitchord-IOS/web/app
+git clone https://github.com/Rohanjm911/IOS-pod.git
+cd IOS-pod/web/app
 
 # 2. Install dependencies
 pnpm install
