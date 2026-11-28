@@ -5,7 +5,7 @@ export type SidePanel = 'up-next' | 'lyrics' | null;
 export type VisualizerMode = 'off' | 'bars' | 'wave' | 'particles';
 
 export type PlayerStyle = 'apple' | 'compact' | 'dock' | 'neon';
-export type AppUiMode = 'primary' | 'secondary' | 'editorial' | 'bento';
+export type AppUiMode = 'primary' | 'secondary' | 'editorial' | 'bento' | 'retro' | 'anime';
 export type BrutalPaletteId =
   | 'acid-ink'
   | 'cyber-cobalt'
@@ -32,11 +32,62 @@ export const BRUTAL_PALETTES: readonly BrutalPalette[] = [
   { id: 'mint-obsidian', label: 'Mint Obsidian', bg: '#0D1110', ink: '#F2FFF9', accent: '#00F5A0', accent2: '#FF4791', isDark: true },
 ];
 
-export const APP_UI_MODES: readonly { id: AppUiMode; label: string; description: string }[] = [
-  { id: 'primary', label: 'Glassmorphism', description: 'Apple Frosted Depth & Blur' },
-  { id: 'secondary', label: 'Neo-Brutalism', description: 'Bold Ink & Dual-Tone' },
-  { id: 'editorial', label: 'Editorial Magazine', description: 'Print Serif & Asymmetric Grid' },
-  { id: 'bento', label: 'Bento Grids', description: 'Apple Modular Rounded Tiles' },
+export const APP_UI_MODES: readonly {
+  id: AppUiMode;
+  label: string;
+  description: string;
+  schemeName: string;
+  swatches: readonly string[];
+  accentBg: string;
+}[] = [
+  {
+    id: 'primary',
+    label: 'Glassmorphism',
+    description: 'Apple Frosted Depth & Blur',
+    schemeName: 'Apple Obsidian & Crimson Glass (Fixed)',
+    swatches: ['#121218', '#FFFFFF', '#FA243C', '#FF6B81'],
+    accentBg: 'linear-gradient(135deg, #FA243C, #D91B38)',
+  },
+  {
+    id: 'secondary',
+    label: 'Neo-Brutalism',
+    description: 'Bold Ink, Cobalt & Volt',
+    schemeName: 'Electric Cobalt, Cream & Volt (Fixed)',
+    swatches: ['#F6F4EE', '#0B0B0D', '#2563EB', '#FFE600'],
+    accentBg: 'linear-gradient(135deg, #2563EB, #1D4ED8)',
+  },
+  {
+    id: 'editorial',
+    label: 'Editorial Magazine',
+    description: 'Print Serif & Asymmetric Grid',
+    schemeName: 'Print Ink, Paper & Crimson (Fixed)',
+    swatches: ['#FFFFFF', '#000000', '#DC2626', '#6B7280'],
+    accentBg: 'linear-gradient(135deg, #DC2626, #991B1B)',
+  },
+  {
+    id: 'bento',
+    label: 'Bento Grids',
+    description: 'Apple Modular Rounded Tiles',
+    schemeName: 'Apple Canvas, Blue & Green (Fixed)',
+    swatches: ['#F5F5F7', '#FFFFFF', '#0066CC', '#34C759'],
+    accentBg: 'linear-gradient(135deg, #007AFF, #0066CC)',
+  },
+  {
+    id: 'retro',
+    label: 'Retro iPod',
+    description: 'Brushed Metal & Backlit LCD',
+    schemeName: 'Brushed Silver & Aqua LCD (Fixed)',
+    swatches: ['#E3E5EA', '#EDF1F5', '#146EF5', '#5BB0FF'],
+    accentBg: 'linear-gradient(180deg, #5BB0FF, #146EF5)',
+  },
+  {
+    id: 'anime',
+    label: 'Anime Studio',
+    description: 'Sakura Neon & Cel-Shaded Manga',
+    schemeName: 'Sakura Pink & Cyber Cyan (Fixed)',
+    swatches: ['#0D0A1A', '#FF3E8A', '#00D2FF', '#7C3AED'],
+    accentBg: 'linear-gradient(135deg, #FF3E8A, #7C3AED)',
+  },
 ];
 
 export type FullScreenArtStyle = 'classic' | 'vinyl' | 'soft' | 'minimal';
@@ -140,7 +191,13 @@ const initialPlayerStyle: PlayerStyle =
   savedStyle && PLAYER_STYLES.some((s) => s.id === savedStyle) ? savedStyle : 'apple';
 const savedUiMode = localStorage.getItem(UI_MODE_KEY) as AppUiMode | null;
 const initialUiMode: AppUiMode =
-  savedUiMode === 'secondary' || savedUiMode === 'editorial' || savedUiMode === 'bento' ? savedUiMode : 'primary';
+  savedUiMode === 'secondary' ||
+  savedUiMode === 'editorial' ||
+  savedUiMode === 'bento' ||
+  savedUiMode === 'retro' ||
+  savedUiMode === 'anime'
+    ? savedUiMode
+    : 'primary';
 const savedBrutal = localStorage.getItem(BRUTAL_PALETTE_KEY) as BrutalPaletteId | null;
 const initialBrutalPalette: BrutalPaletteId =
   savedBrutal && (savedBrutal === 'custom' || BRUTAL_PALETTES.some((p) => p.id === savedBrutal))

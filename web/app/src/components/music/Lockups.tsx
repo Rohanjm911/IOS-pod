@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { PrefetchLink } from '@/components/PrefetchLink';
 import { PlayIcon } from '@/components/icons/Transport';
 import type { MusicItem } from '@/data/music/types';
@@ -109,7 +110,7 @@ export function SquareLockup({ item, width = 220 }: { item: MusicItem; width?: n
 }
 
 /** 16:9 video lockup (report §2, type C). */
-export function VideoLockup({ item, width = 300 }: { item: MusicItem; width?: number }) {
+export const VideoLockup = memo(function VideoLockup({ item, width = 300 }: { item: MusicItem; width?: number }) {
   return (
     <div className={lockup}>
       <LockupArtwork item={item} width={width} aspect={16 / 9} />
@@ -122,20 +123,20 @@ export function VideoLockup({ item, width = 300 }: { item: MusicItem; width?: nu
       </div>
     </div>
   );
-}
+});
 
 /** Circular artist lockup (report §2, type H). */
-export function CircleLockup({ item, width = 160 }: { item: MusicItem; width?: number }) {
+export const CircleLockup = memo(function CircleLockup({ item, width = 160 }: { item: MusicItem; width?: number }) {
   return (
     <PrefetchLink to={hrefFor(item) ?? '#'} className="group/circle flex min-w-0 flex-col items-center gap-2.5">
       <Artwork src={item.thumbnail} displayWidth={width} radius="50%" />
       <span className="max-w-full truncate text-center type-body group-hover/circle:underline">{item.title}</span>
     </PrefetchLink>
   );
-}
+});
 
 /** A song row inside a shelf (report §2, track lockup): 40px art, title, byline. */
-export function TrackLockup({ item, onPlay }: { item: MusicItem; onPlay?: () => void }) {
+export const TrackLockup = memo(function TrackLockup({ item, onPlay }: { item: MusicItem; onPlay?: () => void }) {
   const play = onPlay ?? (() => playTrack(item));
   return (
     // 52px art column (40 + 12 gap), content, menu; 55px tall.
@@ -171,4 +172,4 @@ export function TrackLockup({ item, onPlay }: { item: MusicItem; onPlay?: () => 
       )}
     </div>
   );
-}
+});

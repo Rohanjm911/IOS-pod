@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react';
+import { memo, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { sizedArtwork } from '@/lib/artwork';
 
 interface ArtworkProps {
@@ -20,11 +20,17 @@ const frame = 'relative isolate w-full overflow-hidden bg-joe artwork-stroke';
  * short fade (prompt §3). The 0.5px inner stroke is Apple's "has-borders"
  * treatment (report §1).
  */
-export function Artwork({ src, displayWidth, aspect = 1, radius, className, eager }: ArtworkProps) {
+export const Artwork = memo(function Artwork({ src, displayWidth, aspect = 1, radius, className, eager }: ArtworkProps) {
   const [loaded, setLoaded] = useState(false);
   // googleusercontent answers bursts with 429 (lib/artwork.ts). A failed load
   // is retried once after a pause, then falls back to YouTube's own URL.
   const [attempt, setAttempt] = useState(0);
+  const retryTimer = useRef<number | null>(null);
+  useEffect(() => {
+    return () => {
+      if (retryTimer.current !== null) window.clearTimeout(retryTimer.current);
+    };
+  }, []);
   const sized = src ? sizedArtwork(src, displayWidth, aspect) : null;
   const url = attempt >= 2 || sized === src ? src : sized;
   return (
@@ -47,11 +53,14 @@ export function Artwork({ src, displayWidth, aspect = 1, radius, className, eage
           draggable={false}
           onLoad={() => setLoaded(true)}
           onError={() => {
-            if (attempt === 0) setTimeout(() => setAttempt(1), 1500);
-            else if (attempt === 1 && url !== src) setAttempt(2);
+            if (attempt === 0) {
+              retryTimer.current = window.setTimeout(() => setAttempt(1), 1500);
+            } else if (attempt === 1 && url !== src) {
+              setAttempt(2);
+            }
           }}
         />
       )}
     </div>
   );
-}
+});

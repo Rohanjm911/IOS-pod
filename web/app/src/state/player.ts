@@ -45,8 +45,10 @@ import {
   applyEqualizerVolumes,
   connectAudioElementToEqualizer,
   getActiveAnalyser,
+  getAudioContext,
   resumeAudioContext,
 } from '@/state/equalizer';
+import { registerDacTargets, useDacAudio } from '@/state/dacAudio';
 
 export interface NowPlaying {
   videoId: string;
@@ -65,7 +67,7 @@ export type PlayerStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'bufferin
 export type RepeatMode = 'off' | 'all' | 'one';
 
 /** Crossfade lengths offered, in seconds; 0 is off. */
-export const CROSSFADE_CHOICES = [0, 3, 6, 9, 12] as const;
+export const CROSSFADE_CHOICES = [0, 2, 3, 6, 9, 12] as const;
 
 interface Settings {
   shuffle: boolean;
@@ -142,7 +144,7 @@ const DEFAULT_SETTINGS: Settings = {
   autoplay: true,
   volume: 1,
   muted: false,
-  crossfadeSec: 0,
+  crossfadeSec: 2,
   automix: false,
   automixBars: 16,
   showNerdStats: false,
@@ -201,9 +203,19 @@ function persistPlaybackSession(explicitPosSec?: number): void {
   }
 }
 
+const CROSSFADE_AUTO_MIGRATION_KEY = 'isopod:crossfade-auto-v1';
+
 function loadSettings(): Settings {
   try {
-    return { ...DEFAULT_SETTINGS, ...(JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') as Partial<Settings>) };
+    const parsed = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') as Partial<Settings>;
+    const merged = { ...DEFAULT_SETTINGS, ...parsed };
+    if (!localStorage.getItem(CROSSFADE_AUTO_MIGRATION_KEY)) {
+      localStorage.setItem(CROSSFADE_AUTO_MIGRATION_KEY, '1');
+      if (parsed.crossfadeSec === 0 && !parsed.automix) {
+        merged.crossfadeSec = 2;
+      }
+    }
+    return merged;
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -322,7 +334,8 @@ function getDecks(): Promise<Deck[]> {
       bindElement(deck, n);
       return deck;
     });
-    // Wire up Web Audio graph immediately so Equalizer & Analyser are always active
+    // Wire up Web Audio graph & external DAC sink routing
+    registerDacTargets(elements, getAudioContext);
     void ensureAutomix();
     applyVolumes();
     // For browser-driven tests: the elements aren't in the DOM.
@@ -332,9 +345,16 @@ function getDecks(): Promise<Deck[]> {
   return decksPromise;
 }
 
+export function syncDacVolume(): void {
+  applyVolumes();
+}
+
 function applyVolumes() {
   const { volume, muted } = usePlayer.getState();
-  const level = muted ? 0 : Math.min(1, Math.max(0, volume));
+  const { dacDirectMode, lockUnityVolume } = useDacAudio.getState();
+  const rawLevel = muted ? 0 : Math.min(1, Math.max(0, volume));
+  // In DAC Direct + Unity Volume Lock mode, keep digital gain at 1.0 (0 dB) for bit-transparent output
+  const level = !muted && dacDirectMode && lockUnityVolume ? 1 : rawLevel;
 
   // 1. Always update audio elements directly so IframePlayerAdapter (YouTube iframe bridge)
   // and native HTMLAudioElement respond to volume slider and mute toggle immediately!
@@ -922,6 +942,20 @@ function planNext(auto: boolean): NextPlan | null {
 
 async function advance(auto: boolean): Promise<void> {
   unlockAudioOnGesture();
+  const { queue: curQueue, index: curIndex, nowPlaying: curPlaying } = usePlayer.getState();
+  const finishedTrack = curQueue[curIndex]?.track;
+  if (finishedTrack) {
+    const audio = getAudio();
+    const duration =
+      audio && Number.isFinite(audio.duration) && audio.duration > 0
+        ? audio.duration
+        : (curPlaying?.durationSec ?? finishedTrack.durationSec ?? 0);
+    const currentTime = audio && Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+    const fraction = duration > 0 ? Math.min(1, Math.max(0, currentTime / duration)) : auto ? 1 : 0;
+    void import('@/data/music/tasteProfile').then(({ recordTrackOutcome }) => {
+      recordTrackOutcome(finishedTrack, fraction, auto);
+    });
+  }
   let plan = planNext(auto);
   if (!plan && usePlayer.getState().autoplay) {
     await refillAutoplay(true, true);
@@ -1105,7 +1139,7 @@ function maybeCrossfade() {
   if (!decks || fade || state.automix || !state.crossfadeSec || state.status !== 'playing') return;
   const front = decks[active]!;
   const remaining = front.audio.duration - front.audio.currentTime;
-  if (!Number.isFinite(remaining) || remaining > state.crossfadeSec || remaining < 1) return;
+  if (!Number.isFinite(remaining) || remaining > state.crossfadeSec || remaining < 0.4) return;
   const plan = planNext(true);
   if (!plan || plan.kind !== 'index') return;
 
@@ -1301,8 +1335,19 @@ function maybeSkipIntroOutro(element: HTMLAudioElement): void {
   }
 
   // Tier 3: Real-time trailing silence / end-credits detection via Web Audio Analyser
+  // Guard against buffering/seeking and quiet mid-song bridges by checking only the final 15%.
   const analyser = getActiveAnalyser();
-  if (!analyser || !duration || duration <= 30 || silenceAdvanceTriggered) return;
+  if (
+    !analyser ||
+    !duration ||
+    duration <= 60 ||
+    silenceAdvanceTriggered ||
+    element.seeking ||
+    element.readyState < HTMLMediaElement.HAVE_FUTURE_DATA
+  ) {
+    silentTailStartMs = 0;
+    return;
+  }
 
   analyser.getByteFrequencyData(silenceAnalyserBuf);
   let maxBin = 0;
@@ -1318,14 +1363,14 @@ function maybeSkipIntroOutro(element: HTMLAudioElement): void {
 
   if (
     hasRealAudioInTrack &&
-    maxBin < 6 &&
-    element.currentTime > duration * 0.65 &&
+    maxBin < 3 &&
+    element.currentTime > duration * 0.85 &&
     duration - element.currentTime > 6
   ) {
     const now = Date.now();
     if (silentTailStartMs === 0) {
       silentTailStartMs = now;
-    } else if (now - silentTailStartMs >= 4000) {
+    } else if (now - silentTailStartMs >= 6000) {
       silenceAdvanceTriggered = true;
       trackLog.i(`Auto-skipping silent end-credits tail at ${element.currentTime.toFixed(1)}s`, nowPlaying.videoId);
       if (repeat === 'one') {
@@ -1358,8 +1403,28 @@ function bindElement(deck: Deck, n: number) {
     }
   });
   element.addEventListener('waiting', () => set('buffering'));
+  let recoveredVideoId = '';
   element.addEventListener('ended', () => {
     if (!inFront() || holding) return;
+    const np = usePlayer.getState().nowPlaying;
+    const expectedDur =
+      Number.isFinite(element.duration) && element.duration > 0 ? element.duration : (np?.durationSec ?? 0);
+    // Guard against premature HTTP/CDN stream EOF cutting a song off halfway (> 15s before real end)
+    if (
+      np &&
+      expectedDur > 60 &&
+      element.currentTime > 5 &&
+      expectedDur - element.currentTime > 15 &&
+      recoveredVideoId !== np.videoId
+    ) {
+      recoveredVideoId = np.videoId;
+      trackLog.w(
+        `stream ended prematurely at ${element.currentTime.toFixed(1)}s / ${expectedDur.toFixed(1)}s; resuming`,
+        np.videoId,
+      );
+      void startAt(usePlayer.getState().index, { startSec: element.currentTime, auto: true });
+      return;
+    }
     endedListeners.forEach((listener) => listener());
     // The track ran out before the crossfade's next one could start: give up
     // on the fade and play the next track here. Waiting on it was silence for
@@ -1427,15 +1492,17 @@ function updateMediaSession(track: NowPlaying | null) {
   // Through the store, so a party hears about them like any other press.
   // A loop mix holds the elements paused while it plays: that's playing, for the keys.
   const sounding = () => graph?.dj.loopMixing || getAudio()?.paused === false;
-  handle('play', () => !sounding() && player().togglePlay());
-  handle('pause', () => sounding() && player().togglePlay());
+  const btOn = () => useDacAudio.getState().bluetoothControlsEnabled;
+  handle('play', () => btOn() && !sounding() && player().togglePlay());
+  handle('pause', () => btOn() && sounding() && player().togglePlay());
+  handle('stop', () => btOn() && sounding() && player().togglePlay());
   handle('seekto', (details) => {
-    if (details.seekTime !== undefined) player().seek(details.seekTime);
+    if (btOn() && details.seekTime !== undefined) player().seek(details.seekTime);
   });
-  handle('seekbackward', (details) => player().seek((getAudio()?.currentTime ?? 0) - (details.seekOffset ?? 10)));
-  handle('seekforward', (details) => player().seek((getAudio()?.currentTime ?? 0) + (details.seekOffset ?? 10)));
-  handle('previoustrack', () => player().previous());
-  handle('nexttrack', () => player().next());
+  handle('seekbackward', (details) => btOn() && player().seek((getAudio()?.currentTime ?? 0) - (details.seekOffset ?? 10)));
+  handle('seekforward', (details) => btOn() && player().seek((getAudio()?.currentTime ?? 0) + (details.seekOffset ?? 10)));
+  handle('previoustrack', () => btOn() && player().previous());
+  handle('nexttrack', () => btOn() && player().next());
 }
 
 function updatePositionState() {

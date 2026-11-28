@@ -7,16 +7,7 @@ export interface TranslateLanguage {
 
 export const TRANSLATE_LANGUAGES: readonly TranslateLanguage[] = [
   { code: 'en', label: 'English' },
-  { code: 'hi', label: 'Hindi (हिन्दी)' },
-  { code: 'es', label: 'Español' },
-  { code: 'fr', label: 'Français' },
-  { code: 'de', label: 'Deutsch' },
-  { code: 'ja', label: '日本語' },
-  { code: 'ko', label: '한국어' },
-  { code: 'pt', label: 'Português' },
-  { code: 'ar', label: 'العربية' },
-  { code: 'ru', label: 'Русский' },
-  { code: 'zh-CN', label: '中文' },
+  { code: 'hinglish', label: 'Hinglish' },
 ];
 
 const ITUNES_NS = 'http://music.apple.com/lyric-ttml-internal';
@@ -52,14 +43,62 @@ function setBounded<K, V>(map: Map<K, V>, key: K, value: V, limit: number): void
   }
 }
 
+const DEVANAGARI_CONSONANTS: Record<string, string> = {
+  'क': 'k', 'ख': 'kh', 'ग': 'g', 'घ': 'gh', 'ङ': 'n',
+  'च': 'ch', 'छ': 'chh', 'ज': 'j', 'झ': 'jh', 'ञ': 'n',
+  'ट': 't', 'ठ': 'th', 'ड': 'd', 'ढ': 'dh', 'ण': 'n',
+  'त': 't', 'थ': 'th', 'द': 'd', 'ध': 'dh', 'न': 'n',
+  'प': 'p', 'फ': 'ph', 'ब': 'b', 'भ': 'bh', 'म': 'm',
+  'य': 'y', 'र': 'r', 'ल': 'l', 'व': 'v', 'श': 'sh',
+  'ष': 'sh', 'स': 's', 'ह': 'h', 'क़': 'q', 'ख़': 'kh',
+  'ग़': 'gh', 'ज़': 'z', 'ड़': 'r', 'ढ़': 'rh', 'फ़': 'f',
+};
+
+const DEVANAGARI_VOWELS: Record<string, string> = {
+  'अ': 'a', 'आ': 'aa', 'इ': 'i', 'ई': 'ee', 'उ': 'u', 'ऊ': 'oo',
+  'ए': 'e', 'ऐ': 'ai', 'ओ': 'o', 'औ': 'au', 'ऋ': 'ri',
+};
+
+const DEVANAGARI_MATRAS: Record<string, string> = {
+  'ा': 'a', 'ि': 'i', 'ी': 'ee', 'ु': 'u', 'ू': 'oo',
+  'े': 'e', 'ै': 'ai', 'ो': 'o', 'ौ': 'au', 'ृ': 'ri',
+  'ं': 'n', 'ँ': 'n', 'ः': 'h', '्': '',
+};
+
+/** Fallback Devanagari -> Roman Hinglish transliterator when Google dt=rm omits romanization. */
+function devanagariToHinglish(text: string): string {
+  if (!/[\u0900-\u097F]/.test(text)) return text;
+  let out = '';
+  const chars = [...text];
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i]!;
+    const next = chars[i + 1];
+    if (DEVANAGARI_CONSONANTS[ch]) {
+      out += DEVANAGARI_CONSONANTS[ch];
+      if (!next || (!DEVANAGARI_MATRAS[next] && next !== '्' && /[\u0900-\u097F]/.test(next))) {
+        out += 'a';
+      }
+    } else if (DEVANAGARI_VOWELS[ch]) {
+      out += DEVANAGARI_VOWELS[ch];
+    } else if (DEVANAGARI_MATRAS[ch] !== undefined) {
+      out += DEVANAGARI_MATRAS[ch];
+    } else {
+      out += ch;
+    }
+  }
+  return out.replace(/\s+/g, ' ').trim();
+}
+
 async function fetchGoogleTranslateBatch(
   joinedText: string,
   targetLang: string,
   signal?: AbortSignal,
 ): Promise<string[]> {
+  const isHinglish = targetLang === 'hinglish';
+  const tl = isHinglish ? 'hi' : targetLang;
   const endpoint =
     `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto` +
-    `&tl=${encodeURIComponent(targetLang)}&dt=t&q=${encodeURIComponent(joinedText)}`;
+    `&tl=${encodeURIComponent(tl)}&dt=t${isHinglish ? '&dt=rm' : ''}&q=${encodeURIComponent(joinedText)}`;
 
   const runFetch = async (url: string) => {
     const res = await fetch(url, { signal });
@@ -78,10 +117,19 @@ async function fetchGoogleTranslateBatch(
   }
 
   const segments = Array.isArray(data) && Array.isArray(data[0]) ? data[0] : [];
+  if (isHinglish) {
+    const romanParts = segments
+      .map((seg) => (Array.isArray(seg) && typeof seg[3] === 'string' ? seg[3] : ''))
+      .filter(Boolean);
+    if (romanParts.length > 0) {
+      return romanParts.join('').split('\n');
+    }
+  }
   const full = segments
     .map((seg) => (Array.isArray(seg) && typeof seg[0] === 'string' ? seg[0] : ''))
     .join('');
-  return full.split('\n');
+  const lines = full.split('\n');
+  return isHinglish ? lines.map(devanagariToHinglish) : lines;
 }
 
 /**
@@ -132,7 +180,16 @@ export async function translateTexts(
 
   for (const batch of batches) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-    const translated = await fetchGoogleTranslateBatch(batch.join('\n'), targetLang, signal);
+    let translated = await fetchGoogleTranslateBatch(batch.join('\n'), targetLang, signal);
+    // If Google merged or split newlines, translate line-by-line for this small batch so alignment stays 1:1
+    if (translated.length !== batch.length && batch.length > 1) {
+      translated = await Promise.all(
+        batch.map(async (line) => {
+          const single = await fetchGoogleTranslateBatch(line, targetLang, signal).catch(() => [line]);
+          return single.join(' ').trim();
+        }),
+      );
+    }
     for (let i = 0; i < batch.length; i++) {
       const src = batch[i]!;
       const dst = (translated[i] ?? '').trim();
@@ -202,7 +259,7 @@ export function injectTtmlTranslations(
   const translationsEl = doc.createElementNS(ITUNES_NS, 'itunes:translations');
   const translationEl = doc.createElementNS(ITUNES_NS, 'translation');
   translationEl.setAttribute('type', 'subtitle');
-  translationEl.setAttributeNS(XML_NS, 'xml:lang', targetLang);
+  translationEl.setAttributeNS(XML_NS, 'xml:lang', targetLang === 'hinglish' ? 'hi-Latn' : targetLang);
 
   for (const { key, text } of entries) {
     const textEl = doc.createElementNS(ITUNES_NS, 'text');

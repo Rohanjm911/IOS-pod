@@ -102,6 +102,7 @@ export function MiniPlayer() {
   return (
     <div
       ref={cardRef}
+      data-mini-player=""
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}

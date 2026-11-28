@@ -5,11 +5,21 @@ function warm(to: LinkProps['to']) {
   preloadRoute(typeof to === 'string' ? to : (to.pathname ?? ''));
 }
 
+function shouldUseViewTransition(): boolean {
+  return (
+    typeof document !== 'undefined' &&
+    'startViewTransition' in document &&
+    typeof window !== 'undefined' &&
+    !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  );
+}
+
 /** A link that loads its page's chunk on hover or focus (prompt §3, "Prefetch"). */
-export function PrefetchLink({ to, onPointerEnter, onFocus, ...rest }: LinkProps) {
+export function PrefetchLink({ to, onPointerEnter, onFocus, viewTransition, ...rest }: LinkProps) {
   return (
     <Link
       to={to}
+      viewTransition={viewTransition ?? shouldUseViewTransition()}
       onPointerEnter={(e) => {
         warm(to);
         onPointerEnter?.(e);
@@ -23,10 +33,11 @@ export function PrefetchLink({ to, onPointerEnter, onFocus, ...rest }: LinkProps
   );
 }
 
-export function PrefetchNavLink({ to, onPointerEnter, onFocus, ...rest }: NavLinkProps) {
+export function PrefetchNavLink({ to, onPointerEnter, onFocus, viewTransition, ...rest }: NavLinkProps) {
   return (
     <NavLink
       to={to}
+      viewTransition={viewTransition ?? shouldUseViewTransition()}
       onPointerEnter={(e) => {
         warm(to);
         onPointerEnter?.(e);

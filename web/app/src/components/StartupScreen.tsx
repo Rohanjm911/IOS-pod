@@ -44,15 +44,28 @@ function playStartupSound(
 
   let ctx: AudioContext | null = null;
   let played = false;
+  let disposed = false;
   let closeTimer = 0;
   let blockedTimer = 0;
 
+  const removeGestureListeners = () => {
+    window.removeEventListener('pointerdown', onGesture);
+    window.removeEventListener('touchstart', onGesture);
+    window.removeEventListener('click', onGesture);
+    window.removeEventListener('keydown', onGesture);
+  };
+
   const trigger = () => {
-    if (played || !ctx) return false;
+    if (played || disposed || !ctx) return false;
     if (ctx.state === 'suspended') {
-      void ctx.resume().then(() => {
-        if (!played && ctx?.state === 'running') scheduleNotes(ctx);
-      });
+      void ctx
+        .resume()
+        .then(() => {
+          if (!played && !disposed && ctx?.state === 'running') {
+            scheduleNotes(ctx);
+          }
+        })
+        .catch(() => {});
       return false;
     }
     if (ctx.state === 'running') {
@@ -62,10 +75,18 @@ function playStartupSound(
     return false;
   };
 
+  const onStateChange = () => {
+    if (!played && !disposed && ctx?.state === 'running') {
+      scheduleNotes(ctx);
+    }
+  };
+
   const scheduleNotes = (audioCtx: AudioContext) => {
-    if (played) return;
+    if (played || disposed) return;
     played = true;
     window.clearTimeout(blockedTimer);
+    removeGestureListeners();
+    audioCtx.removeEventListener('statechange', onStateChange);
     onBlocked?.(false);
     const now = audioCtx.currentTime;
 
@@ -102,55 +123,59 @@ function playStartupSound(
     master.connect(audioCtx.destination);
 
     if (uiMode === 'secondary') {
-      // Neo-Brutalism: punchy square sub-stomp + crunchy dual-tone power chord
+      // Neo-Brutalism: 808 punch + staccato acid-sawtooth 3-note riff + industrial chord
       const stomp = audioCtx.createOscillator();
       const stompGain = audioCtx.createGain();
-      stomp.type = 'square';
-      stomp.frequency.setValueAtTime(165, now + 0.04);
-      stomp.frequency.exponentialRampToValueAtTime(42, now + 0.32);
-      stompGain.gain.setValueAtTime(0.0001, now + 0.04);
-      stompGain.gain.exponentialRampToValueAtTime(0.65, now + 0.055);
-      stompGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+      stomp.type = 'sine';
+      stomp.frequency.setValueAtTime(145, now + 0.03);
+      stomp.frequency.exponentialRampToValueAtTime(36, now + 0.3);
+      stompGain.gain.setValueAtTime(0.0001, now + 0.03);
+      stompGain.gain.exponentialRampToValueAtTime(0.75, now + 0.045);
+      stompGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.36);
       stomp.connect(stompGain).connect(compressor);
-      stomp.start(now + 0.04);
-      stomp.stop(now + 0.45);
+      stomp.start(now + 0.03);
+      stomp.stop(now + 0.38);
 
-      const synthFilter = audioCtx.createBiquadFilter();
-      synthFilter.type = 'lowpass';
-      synthFilter.Q.setValueAtTime(4.0, now + 0.24);
-      synthFilter.frequency.setValueAtTime(420, now + 0.24);
-      synthFilter.frequency.exponentialRampToValueAtTime(2800, now + 0.55);
-      synthFilter.frequency.exponentialRampToValueAtTime(700, now + 1.9);
-      synthFilter.connect(compressor);
+      const riffFilter = audioCtx.createBiquadFilter();
+      riffFilter.type = 'lowpass';
+      riffFilter.Q.setValueAtTime(5.5, now + 0.14);
+      riffFilter.frequency.setValueAtTime(360, now + 0.14);
+      riffFilter.frequency.exponentialRampToValueAtTime(3200, now + 0.42);
+      riffFilter.frequency.exponentialRampToValueAtTime(620, now + 1.9);
+      riffFilter.connect(compressor);
 
-      for (const freq of [65.41, 98.0, 130.81, 155.56, 196.0]) {
+      [
+        { freq: 82.41, at: 0.14, dur: 0.14 },
+        { freq: 98.0, at: 0.28, dur: 0.14 },
+        { freq: 164.81, at: 0.42, dur: 1.45 },
+      ].forEach((n) => {
         const osc = audioCtx.createOscillator();
         const g = audioCtx.createGain();
         osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(freq, now + 0.24);
-        g.gain.setValueAtTime(0.0001, now + 0.24);
-        g.gain.exponentialRampToValueAtTime(0.18, now + 0.3);
-        g.gain.exponentialRampToValueAtTime(0.0001, now + 1.95);
-        osc.connect(g).connect(synthFilter);
-        osc.start(now + 0.24);
-        osc.stop(now + 2.0);
-      }
+        osc.frequency.setValueAtTime(n.freq, now + n.at);
+        g.gain.setValueAtTime(0.0001, now + n.at);
+        g.gain.exponentialRampToValueAtTime(0.28, now + n.at + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + n.at + n.dur);
+        osc.connect(g).connect(riffFilter);
+        osc.start(now + n.at);
+        osc.stop(now + n.at + n.dur + 0.04);
+      });
     } else if (uiMode === 'editorial') {
-      // Editorial Magazine: crisp typewriter key clicks + warm Rhodes/piano Fmaj9 bloom
-      for (const clickAt of [0.04, 0.12, 0.2]) {
+      // Editorial Magazine: 4 typewriter keystrokes + carriage-return bell + warm Gmaj9 Rhodes bloom
+      for (const clickAt of [0.04, 0.11, 0.18, 0.25]) {
         try {
-          const len = Math.floor(audioCtx.sampleRate * 0.025);
+          const len = Math.floor(audioCtx.sampleRate * 0.022);
           const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
           const d = buf.getChannelData(0);
-          for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (len * 0.25));
+          for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (len * 0.22));
           const src = audioCtx.createBufferSource();
           src.buffer = buf;
           const bp = audioCtx.createBiquadFilter();
           bp.type = 'bandpass';
-          bp.frequency.setValueAtTime(2200, now + clickAt);
-          bp.Q.setValueAtTime(3.0, now + clickAt);
+          bp.frequency.setValueAtTime(2400, now + clickAt);
+          bp.Q.setValueAtTime(3.2, now + clickAt);
           const cg = audioCtx.createGain();
-          cg.gain.setValueAtTime(0.35, now + clickAt);
+          cg.gain.setValueAtTime(0.32, now + clickAt);
           src.connect(bp).connect(cg).connect(compressor);
           src.start(now + clickAt);
         } catch {
@@ -158,48 +183,143 @@ function playStartupSound(
         }
       }
 
+      // Vintage carriage-return bell (D6)
+      const bell = audioCtx.createOscillator();
+      const bg = audioCtx.createGain();
+      bell.type = 'sine';
+      bell.frequency.setValueAtTime(1174.66, now + 0.33);
+      bg.gain.setValueAtTime(0.0001, now + 0.33);
+      bg.gain.exponentialRampToValueAtTime(0.18, now + 0.34);
+      bg.gain.exponentialRampToValueAtTime(0.0001, now + 1.05);
+      bell.connect(bg).connect(compressor);
+      bell.start(now + 0.33);
+      bell.stop(now + 1.1);
+
       const warmFilter = audioCtx.createBiquadFilter();
       warmFilter.type = 'lowpass';
-      warmFilter.frequency.setValueAtTime(1500, now + 0.28);
+      warmFilter.frequency.setValueAtTime(1600, now + 0.42);
       warmFilter.connect(compressor);
 
-      const fmaj9 = [174.61, 261.63, 329.63, 392.0, 440.0];
-      fmaj9.forEach((freq, idx) => {
+      [196.0, 246.94, 293.66, 369.99, 440.0].forEach((freq, idx) => {
         const osc = audioCtx.createOscillator();
         const g = audioCtx.createGain();
-        const t = now + 0.28 + idx * 0.055;
+        const t = now + 0.42 + idx * 0.045;
         osc.type = idx % 2 === 0 ? 'triangle' : 'sine';
         osc.frequency.setValueAtTime(freq, t);
         g.gain.setValueAtTime(0.0001, t);
-        g.gain.exponentialRampToValueAtTime(0.22, t + 0.06);
-        g.gain.exponentialRampToValueAtTime(0.0001, now + 2.2);
+        g.gain.exponentialRampToValueAtTime(0.2, t + 0.05);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + 2.25);
         osc.connect(g).connect(warmFilter);
         osc.start(t);
-        osc.stop(now + 2.25);
+        osc.stop(now + 2.3);
       });
     } else if (uiMode === 'bento') {
-      // Bento Grids: Apple-inspired crystalline harmonic chime arpeggio
-      const chimeNotes = [261.63, 329.63, 392.0, 493.88, 587.33]; // Cmaj9
-      chimeNotes.forEach((freq, idx) => {
-        const t = now + 0.06 + idx * 0.08;
+      // Bento Grids: Apple-inspired marimba tap + silky Cmaj9 harmonic pad swell
+      [
+        { freq: 523.25, at: 0.05 },
+        { freq: 783.99, at: 0.14 },
+      ].forEach((tap) => {
+        const m = audioCtx.createOscillator();
+        const mg = audioCtx.createGain();
+        m.type = 'sine';
+        m.frequency.setValueAtTime(tap.freq, now + tap.at);
+        mg.gain.setValueAtTime(0.0001, now + tap.at);
+        mg.gain.exponentialRampToValueAtTime(0.28, now + tap.at + 0.01);
+        mg.gain.exponentialRampToValueAtTime(0.0001, now + tap.at + 0.45);
+        m.connect(mg).connect(compressor);
+        m.start(now + tap.at);
+        m.stop(now + tap.at + 0.5);
+      });
+
+      [261.63, 329.63, 392.0, 493.88, 587.33].forEach((freq, idx) => {
+        const t = now + 0.24 + idx * 0.05;
         const osc = audioCtx.createOscillator();
-        const shimmer = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, t);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.16, t + 0.14);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + 2.25);
+        osc.connect(g).connect(compressor);
+        osc.start(t);
+        osc.stop(now + 2.3);
+      });
+    } else if (uiMode === 'retro') {
+      // Retro iPod: accelerating click-wheel piezo clicks + nostalgic C5 -> G5 Aqua chime
+      [0.05, 0.14, 0.22, 0.28, 0.33].forEach((offset) => {
+        const t = now + offset;
+        const click = audioCtx.createOscillator();
+        const cg = audioCtx.createGain();
+        click.type = 'triangle';
+        click.frequency.setValueAtTime(3400, t);
+        click.frequency.exponentialRampToValueAtTime(950, t + 0.015);
+        cg.gain.setValueAtTime(0.0001, t);
+        cg.gain.exponentialRampToValueAtTime(0.2, t + 0.002);
+        cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.02);
+        click.connect(cg).connect(compressor);
+        click.start(t);
+        click.stop(t + 0.022);
+      });
+
+      [
+        { freq: 523.25, at: 0.42 },
+        { freq: 783.99, at: 0.58 },
+      ].forEach((n) => {
+        const osc = audioCtx.createOscillator();
         const g = audioCtx.createGain();
         osc.type = 'sine';
-        shimmer.type = 'triangle';
-        osc.frequency.setValueAtTime(freq, t);
-        shimmer.frequency.setValueAtTime(freq * 2, t);
-        const sg = audioCtx.createGain();
-        sg.gain.setValueAtTime(0.04, t);
-        g.gain.setValueAtTime(0.0001, t);
-        g.gain.exponentialRampToValueAtTime(0.24, t + 0.03);
+        osc.frequency.setValueAtTime(n.freq, now + n.at);
+        g.gain.setValueAtTime(0.0001, now + n.at);
+        g.gain.exponentialRampToValueAtTime(0.26, now + n.at + 0.02);
         g.gain.exponentialRampToValueAtTime(0.0001, now + 2.2);
         osc.connect(g).connect(compressor);
-        shimmer.connect(sg).connect(g);
-        osc.start(t);
-        shimmer.start(t);
+        osc.start(now + n.at);
         osc.stop(now + 2.25);
-        shimmer.stop(now + 2.25);
+      });
+    } else if (uiMode === 'anime') {
+      // Anime Studio: title-card air-whoosh into uplifting J-Pop IV-V-I sparkle fanfare
+      try {
+        const bufSize = Math.floor(audioCtx.sampleRate * 0.24);
+        const noiseBuf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+        const data = noiseBuf.getChannelData(0);
+        for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = noiseBuf;
+        const bp = audioCtx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.setValueAtTime(420, now);
+        bp.frequency.exponentialRampToValueAtTime(4200, now + 0.22);
+        const ng = audioCtx.createGain();
+        ng.gain.setValueAtTime(0.001, now);
+        ng.gain.exponentialRampToValueAtTime(0.18, now + 0.14);
+        ng.gain.exponentialRampToValueAtTime(0.0001, now + 0.24);
+        noise.connect(bp).connect(ng).connect(compressor);
+        noise.start(now);
+      } catch {
+        // ignore
+      }
+
+      const fanfare = [349.23, 392.0, 440.0, 523.25, 659.25, 783.99, 1046.5];
+      fanfare.forEach((freq, idx) => {
+        const t = now + 0.14 + idx * 0.055;
+        const osc = audioCtx.createOscillator();
+        const overtone = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        const og = audioCtx.createGain();
+        osc.type = 'triangle';
+        overtone.type = 'sine';
+        osc.frequency.setValueAtTime(freq, t);
+        overtone.frequency.setValueAtTime(freq * 2, t);
+        og.gain.setValueAtTime(0.06, t);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.22, t + 0.018);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + 2.35);
+        osc.connect(g).connect(compressor);
+        overtone.connect(og).connect(g);
+        osc.start(t);
+        overtone.start(t);
+        osc.stop(now + 2.4);
+        overtone.stop(now + 2.4);
       });
     } else {
       // Primary (Glassmorphism): Cinema "Ta-Dum" sub-drop + orchestral synth brass swell
@@ -303,11 +423,17 @@ function playStartupSound(
     }, 2450);
   };
 
+  // If browser blocked autoplay before gesture, unlock cleanly on first interaction while splash is up
+  function onGesture() {
+    trigger();
+  }
+
   try {
     ctx = new AudioCtx();
+    ctx.addEventListener('statechange', onStateChange);
     trigger();
     blockedTimer = window.setTimeout(() => {
-      if (!played && ctx && ctx.state === 'suspended') {
+      if (!played && !disposed && ctx && ctx.state === 'suspended') {
         onBlocked?.(true);
       }
     }, 120);
@@ -315,12 +441,10 @@ function playStartupSound(
     return noop;
   }
 
-  // If browser blocked autoplay before gesture, unlock cleanly on first interaction while splash is up
-  const onGesture = () => {
-    trigger();
-  };
-  window.addEventListener('pointerdown', onGesture, { once: true, passive: true });
-  window.addEventListener('keydown', onGesture, { once: true, passive: true });
+  window.addEventListener('pointerdown', onGesture, { passive: true });
+  window.addEventListener('touchstart', onGesture, { passive: true });
+  window.addEventListener('click', onGesture, { passive: true });
+  window.addEventListener('keydown', onGesture, { passive: true });
 
   return {
     unlock: () => {
@@ -329,8 +453,9 @@ function playStartupSound(
       return wasBlocked;
     },
     cleanup: () => {
-      window.removeEventListener('pointerdown', onGesture);
-      window.removeEventListener('keydown', onGesture);
+      disposed = true;
+      removeGestureListeners();
+      if (ctx) ctx.removeEventListener('statechange', onStateChange);
       window.clearTimeout(blockedTimer);
       // Let closeTimer finish closing AudioContext naturally if the chord already started playing
       if (!played) {
@@ -357,8 +482,8 @@ export function StartupScreen() {
 
   useEffect(() => {
     const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    const exitDelay = reduced ? 350 : 1900;
-    const unmountDelay = reduced ? 650 : 2400;
+    const exitDelay = reduced ? 350 : 2200;
+    const unmountDelay = reduced ? 650 : 2700;
 
     const ctrl = reduced ? { cleanup: () => {}, unlock: () => false } : playStartupSound(uiMode, setSoundBlocked);
     soundCtrlRef.unlock = ctrl.unlock;
@@ -375,13 +500,193 @@ export function StartupScreen() {
 
   const exiting = phase === 'exiting';
   const handleBackdropClick = () => {
-    if (soundBlocked) {
-      soundCtrlRef.unlock();
+    const wasBlocked = soundCtrlRef.unlock();
+    if (soundBlocked || wasBlocked) {
       setSoundBlocked(false);
       return;
     }
     setPhase('exiting');
   };
+
+  // 6th UI: Anime Studio Startup Screen (Sakura Neon & Cel-Shaded Manga Title Card)
+  if (uiMode === 'anime') {
+    return (
+      <div
+        role="status"
+        aria-label="Loading ISO pod"
+        onClick={handleBackdropClick}
+        className={`fixed inset-0 z-[9999] flex cursor-pointer select-none flex-col items-center justify-center overflow-hidden px-4 transition-[opacity,transform] duration-500 ${
+          exiting ? 'pointer-events-none scale-[1.04] opacity-0' : 'scale-100 opacity-100'
+        }`}
+        style={{
+          backgroundColor: 'var(--anime-bg, #0d0a1a)',
+          backgroundImage:
+            'radial-gradient(circle at 20% 25%, rgba(255,62,138,0.28), transparent 48%), radial-gradient(circle at 80% 75%, rgba(0,210,255,0.24), transparent 50%)',
+          color: 'var(--anime-ink, #fdf7ff)',
+        }}
+      >
+        {/* Manga Speed-Lines & Sakura Aura */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-[-20%] opacity-15"
+          style={{
+            background:
+              'repeating-conic-gradient(from 0deg, transparent 0deg 6deg, rgba(255,62,138,0.35) 6deg 7.5deg, transparent 7.5deg 15deg)',
+          }}
+        />
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute top-[14%] left-[14%] size-5 rounded-full bg-[#FF3E8A]/70 blur-[1px] animate-[anime-petal-float_2.4s_ease-in-out_infinite]"
+        />
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute top-[24%] right-[16%] size-3.5 rounded-full bg-[#FFB800]/70 blur-[1px] animate-[anime-petal-float_2.9s_ease-in-out_0.25s_infinite]"
+        />
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute right-[20%] bottom-[20%] size-4 rounded-full bg-[#00D2FF]/75 blur-[1px] animate-[anime-petal-float_3.1s_ease-in-out_0.4s_infinite]"
+        />
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute bottom-[22%] left-[22%] size-3 rounded-full bg-[#7C3AED]/75 blur-[1px] animate-[anime-petal-float_2.7s_ease-in-out_0.6s_infinite]"
+        />
+
+        <div
+          className="relative flex w-[min(480px,92vw)] max-h-[90dvh] flex-col items-center overflow-hidden rounded-[24px] border-2 px-7 py-8 text-center animate-[anime-slash-in_560ms_cubic-bezier(0.22,1,0.36,1)_both] [@media(orientation:landscape)_and_(max-height:580px)]:py-4 [@media(orientation:landscape)_and_(max-height:580px)]:px-5"
+          style={{
+            backgroundColor: 'var(--anime-card, #17122b)',
+            borderColor: 'var(--anime-border, rgba(255,77,148,0.75))',
+            boxShadow: '8px 8px 0 #FF3E8A, -6px -6px 0 rgba(0, 210, 255, 0.5), 0 24px 60px rgba(255,62,138,0.35)',
+          }}
+        >
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[startup-sheen_1.2s_ease-in-out_200ms_1_forwards]"
+          />
+          <span className="mb-3 rounded-full bg-gradient-to-r from-[#FF3E8A] via-[#7C3AED] to-[#00D2FF] px-3.5 py-1 text-[10px] font-extrabold tracking-[0.22em] text-white uppercase shadow-md">
+            サウンド &bull; Anime Studio Premiere
+          </span>
+          <LogoMark size={64} />
+          <h1
+            className="mt-3 text-5xl font-extrabold tracking-tight leading-none"
+            style={{ fontFamily: "'M PLUS Rounded 1c', 'DM Sans', system-ui, sans-serif" }}
+          >
+            ISO{' '}
+            <span className="bg-gradient-to-r from-[#FF3E8A] to-[#00D2FF] bg-clip-text text-transparent">
+              pod
+            </span>
+          </h1>
+          <p className="mt-2 text-xs font-bold tracking-[0.24em] uppercase opacity-80">
+            Pure Sound &bull; Sakura Hi-Fi
+          </p>
+
+          <div className="mt-5 flex items-end gap-2" aria-hidden="true">
+            {[18, 34, 24, 38, 28, 20].map((h, idx) => (
+              <span
+                key={idx}
+                className="w-2.5 rounded-full bg-gradient-to-t from-[#FF3E8A] to-[#00D2FF]"
+                style={{
+                  height: `${h}px`,
+                  animation: `anime-petal-float ${0.65 + idx * 0.1}s ease-in-out infinite`,
+                }}
+              />
+            ))}
+          </div>
+        </div>
+        {soundBlocked && (
+          <p className="mt-4 text-xs font-bold tracking-wider text-[#FF3E8A] uppercase">
+            Tap anywhere for Anime Sound
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // 5th UI: Retro iPod / Skeuomorphic Hardware Startup Screen
+  if (uiMode === 'retro') {
+    return (
+      <div
+        role="status"
+        aria-label="Loading ISO pod"
+        onClick={handleBackdropClick}
+        className={`fixed inset-0 z-[9999] flex cursor-pointer select-none flex-col items-center justify-center overflow-hidden px-4 transition-[opacity,transform] duration-500 ${
+          exiting ? 'pointer-events-none scale-[1.03] opacity-0' : 'scale-100 opacity-100'
+        }`}
+        style={{
+          background: 'linear-gradient(180deg, var(--retro-metal-hi, #f7f8fa) 0%, var(--retro-metal, #e3e5ea) 50%, var(--retro-metal-lo, #c5c9d3) 100%)',
+          color: 'var(--retro-ink, #111827)',
+        }}
+      >
+        {/* Studio Hardware Spotlight */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute size-[min(90vw,520px)] rounded-full bg-[radial-gradient(circle,rgba(91,176,255,0.28),transparent_65%)] blur-2xl"
+        />
+
+        <div
+          className="relative flex w-[min(360px,90vw)] max-h-[92dvh] flex-col items-center gap-4 rounded-[32px] border p-5 shadow-[0_28px_64px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.9)] animate-[startup-logo_580ms_cubic-bezier(0.16,1,0.3,1)_both]"
+          style={{
+            background: 'linear-gradient(180deg, var(--retro-metal-hi, #f7f8fa), var(--retro-metal-lo, #c5c9d3))',
+            borderColor: 'var(--retro-bevel, #9ca3af)',
+          }}
+        >
+          {/* Backlit LCD Screen */}
+          <div
+            className="relative flex w-full flex-col items-center overflow-hidden rounded-[14px] border px-5 py-5 text-center animate-[retro-lcd-boot_500ms_ease-out_both]"
+            style={{
+              backgroundColor: 'var(--retro-lcd, #edf1f5)',
+              borderColor: 'var(--retro-bevel, #9ca3af)',
+              boxShadow: 'inset 0 3px 8px rgba(0,0,0,0.18)',
+            }}
+          >
+            <span
+              className="mb-2 rounded-full px-2.5 py-0.5 text-[9px] font-bold tracking-[0.18em] text-white uppercase shadow-xs"
+              style={{ background: 'linear-gradient(180deg, #5BB0FF, #146EF5)' }}
+            >
+              System Boot &bull; Hi-Fi DAC
+            </span>
+            <LogoMark size={52} />
+            <h1 className="mt-2.5 text-2xl font-extrabold tracking-tight">ISO pod</h1>
+            <p className="text-[11px] font-semibold opacity-75">Pure Sound. Pocket Hi-Fi.</p>
+            <div className="mt-3.5 h-2.5 w-full overflow-hidden rounded-full border border-black/15 bg-black/10 p-[1px]">
+              <div
+                className="h-full w-full origin-left rounded-full animate-[editorial-rule_1.6s_cubic-bezier(0.22,1,0.36,1)_both]"
+                style={{
+                  background: 'linear-gradient(180deg, #5BB0FF, #146EF5)',
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Tactile Click Wheel */}
+          <div
+            className="relative grid size-[148px] place-items-center rounded-full border shadow-[inset_0_2px_8px_rgba(0,0,0,0.16),0_3px_6px_rgba(255,255,255,0.7)] max-[580px]:hidden [@media(orientation:landscape)_and_(max-height:580px)]:hidden"
+            style={{
+              backgroundColor: 'var(--retro-lcd, #f3f4f6)',
+              borderColor: 'var(--retro-bevel, #9ca3af)',
+            }}
+          >
+            <span className="absolute top-3 text-[10px] font-bold tracking-wider opacity-75">MENU</span>
+            <span className="absolute left-3.5 text-[11px] font-bold opacity-75">&#9664;&#9664;</span>
+            <span className="absolute right-3.5 text-[11px] font-bold opacity-75">&#9654;&#9654;</span>
+            <span className="absolute bottom-3 text-[10px] font-bold opacity-75">&#9654;&#10073;&#10073;</span>
+            <div
+              className="size-13 rounded-full border shadow-[inset_0_1px_3px_rgba(255,255,255,0.85),0_2px_4px_rgba(0,0,0,0.22)]"
+              style={{
+                background: 'linear-gradient(180deg, var(--retro-metal-hi, #f7f8fa), var(--retro-metal-lo, #c5c9d3))',
+                borderColor: 'var(--retro-bevel, #9ca3af)',
+              }}
+            />
+          </div>
+        </div>
+        {soundBlocked && (
+          <p className="mt-3 text-[11px] font-semibold tracking-wider uppercase opacity-75">
+            Tap anywhere for Startup Chime
+          </p>
+        )}
+      </div>
+    );
+  }
 
   // 4th UI: Apple-Inspired Bento Grids Startup Screen (staggered modular rounded tiles)
   if (uiMode === 'bento') {
@@ -398,44 +703,57 @@ export function StartupScreen() {
           color: 'var(--bento-ink, #1d1d1f)',
         }}
       >
-        <div className="grid w-[min(560px,92vw)] grid-cols-4 grid-rows-2 gap-3 max-sm:grid-cols-2">
-          {/* 2x2 Feature Gradient Tile */}
+        {/* Apple Keynote Radial Spotlight */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute size-[min(92vw,620px)] rounded-full bg-[radial-gradient(circle,rgba(0,122,255,0.22),rgba(124,58,237,0.14)_45%,transparent_72%)] blur-3xl"
+        />
+
+        <div className="relative grid w-[min(660px,94vw)] max-h-[90dvh] grid-cols-4 grid-rows-2 gap-3.5 max-sm:grid-cols-2 [@media(orientation:landscape)_and_(max-height:580px)]:gap-2">
+          {/* 2x2 Feature Gradient Tile with Keynote Sheen */}
           <div
-            className="col-span-2 row-span-2 flex flex-col justify-between rounded-[24px] p-6 text-white shadow-[0_12px_32px_rgba(124,58,237,0.3)] animate-[bento-reveal_500ms_ease-out_both]"
-            style={{ background: 'linear-gradient(135deg, #7C3AED, #6D28D9)' }}
+            className="relative col-span-2 row-span-2 flex flex-col justify-between overflow-hidden rounded-[28px] p-6 text-white shadow-[0_20px_48px_rgba(124,58,237,0.38)] animate-[bento-reveal_520ms_ease-out_both] [@media(orientation:landscape)_and_(max-height:580px)]:p-4"
+            style={{ background: 'linear-gradient(135deg, #7C3AED, #5B21B6, #0066CC)' }}
           >
-            <LogoMark size={52} />
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent animate-[startup-sheen_1.2s_ease-in-out_220ms_1_forwards]"
+            />
+            <LogoMark size={60} />
             <div>
-              <h1 className="text-[32px] font-bold tracking-tight leading-none">ISO pod</h1>
-              <p className="mt-1.5 text-xs font-medium text-white/80">Pure Sound. Pocket Hi-Fi.</p>
+              <span className="inline-block rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-semibold tracking-wider uppercase">
+                Pocket Hi-Fi
+              </span>
+              <h1 className="mt-2 text-[36px] font-bold tracking-tight leading-none">ISO pod</h1>
+              <p className="mt-1.5 text-xs font-medium text-white/85">Pure Sound. Engineered Clean.</p>
             </div>
           </div>
 
           {/* Blue Accent Tile */}
           <div
-            className="col-span-2 flex flex-col justify-between rounded-[24px] p-5 text-white shadow-sm animate-[bento-reveal_500ms_ease-out_80ms_both]"
-            style={{ backgroundColor: '#0066CC' }}
+            className="col-span-2 flex flex-col justify-between rounded-[28px] p-5 text-white shadow-[0_12px_28px_rgba(0,102,204,0.25)] animate-[bento-reveal_520ms_ease-out_80ms_both]"
+            style={{ background: 'linear-gradient(135deg, #007AFF, #0051A8)' }}
           >
-            <span className="text-[11px] font-semibold tracking-wider uppercase text-white/75">Multi-Source</span>
-            <span className="text-lg font-semibold leading-tight">Audius &bull; iTunes &bull; YTM</span>
+            <span className="text-[11px] font-semibold tracking-wider uppercase text-white/75">Multi-Source Engine</span>
+            <span className="text-xl font-semibold leading-tight">Audius &bull; iTunes &bull; YTM</span>
           </div>
 
           {/* Green Tile */}
           <div
-            className="flex flex-col justify-between rounded-[24px] p-4 text-[#1D1D1F] shadow-sm animate-[bento-reveal_500ms_ease-out_160ms_both]"
+            className="flex flex-col justify-between rounded-[28px] p-4 text-[#1D1D1F] shadow-md animate-[bento-reveal_520ms_ease-out_160ms_both]"
             style={{ backgroundColor: '#34C759' }}
           >
-            <span className="text-[10px] font-bold uppercase opacity-75">DSP</span>
-            <span className="text-sm font-bold leading-tight">10-Band EQ</span>
+            <span className="text-[10px] font-bold uppercase opacity-75">Studio DSP</span>
+            <span className="text-base font-bold leading-tight">10-Band EQ</span>
           </div>
 
           {/* Dark / Tile Card */}
           <div
-            className="flex flex-col justify-between rounded-[24px] p-4 text-white shadow-sm animate-[bento-reveal_500ms_ease-out_240ms_both]"
+            className="flex flex-col justify-between rounded-[28px] p-4 text-white shadow-md animate-[bento-reveal_520ms_ease-out_240ms_both]"
             style={{ backgroundColor: '#1D1D1F' }}
           >
-            <span className="text-[10px] font-bold uppercase text-white/60">Hi-Fi</span>
-            <span className="text-sm font-bold leading-tight">Lossless UI</span>
+            <span className="text-[10px] font-bold uppercase text-white/60">Spatial</span>
+            <span className="text-base font-bold leading-tight">Live Lyrics</span>
           </div>
         </div>
 
@@ -463,38 +781,50 @@ export function StartupScreen() {
           color: 'var(--ed-ink, #000000)',
         }}
       >
-        <div className="flex w-[min(540px,92vw)] flex-col">
-          <span
-            className="text-[11px] font-bold tracking-[0.22em] uppercase animate-[editorial-rise_500ms_ease-out_both]"
-            style={{ color: 'var(--ed-accent, #dc2626)' }}
-          >
-            Issue No. 01 &bull; Pure Sound &bull; Pocket Hi-Fi
-          </span>
+        <div className="flex w-[min(620px,92vw)] max-h-[90dvh] flex-col">
+          <div className="flex items-center justify-between gap-3 animate-[editorial-rise_500ms_ease-out_both]">
+            <span
+              className="text-[11px] font-bold tracking-[0.22em] uppercase"
+              style={{ color: 'var(--ed-accent, #dc2626)' }}
+            >
+              Issue No. 01 &bull; Collector&rsquo;s Edition
+            </span>
+            <span
+              className="border px-2 py-0.5 text-[10px] font-bold tracking-[0.2em] uppercase rotate-[-3deg]"
+              style={{ borderColor: 'var(--ed-accent, #dc2626)', color: 'var(--ed-accent, #dc2626)' }}
+            >
+              Hi-Fi Press
+            </span>
+          </div>
 
           <div
-            className="my-4 h-[2px] w-full origin-left animate-[editorial-rule_650ms_cubic-bezier(0.22,1,0.36,1)_both]"
+            className="mt-3 mb-1 h-[3px] w-full origin-left animate-[editorial-rule_650ms_cubic-bezier(0.22,1,0.36,1)_both]"
+            style={{ backgroundColor: 'var(--ed-ink, #000000)' }}
+          />
+          <div
+            className="mb-4 h-[1px] w-full origin-right animate-[editorial-rule_750ms_cubic-bezier(0.22,1,0.36,1)_80ms_both]"
             style={{ backgroundColor: 'var(--ed-ink, #000000)' }}
           />
 
-          <div className="flex items-center justify-between gap-5 py-2 animate-[editorial-rise_650ms_cubic-bezier(0.22,1,0.36,1)_120ms_both]">
+          <div className="flex items-center justify-between gap-6 py-2 animate-[editorial-rise_650ms_cubic-bezier(0.22,1,0.36,1)_120ms_both]">
             <h1
-              className="text-[48px] sm:text-[60px] font-black leading-[1.02] tracking-[-0.03em]"
+              className="text-[54px] sm:text-[72px] font-black leading-[0.98] tracking-[-0.03em]"
               style={{ fontFamily: 'var(--ed-display, "Playfair Display", Georgia, serif)' }}
             >
               ISO pod
             </h1>
-            <LogoMark size={58} />
+            <LogoMark size={68} />
           </div>
 
           <p
-            className="mt-2 font-serif text-sm italic animate-[editorial-rise_650ms_cubic-bezier(0.22,1,0.36,1)_220ms_both]"
+            className="mt-3 font-serif text-base italic animate-[editorial-rise_650ms_cubic-bezier(0.22,1,0.36,1)_220ms_both]"
             style={{ color: 'var(--ed-muted, #6b7280)' }}
           >
             &ldquo;Unlimited playlist curation &amp; multi-source hi-fi streaming, typeset for the modern listener.&rdquo;
           </p>
 
           <div
-            className="mt-5 h-[2px] w-full origin-left animate-[editorial-rule_1.4s_cubic-bezier(0.22,1,0.36,1)_180ms_both]"
+            className="mt-5 h-[3px] w-full origin-left animate-[editorial-rule_1.6s_cubic-bezier(0.22,1,0.36,1)_180ms_both]"
             style={{ backgroundColor: 'var(--ed-accent, #dc2626)' }}
           />
         </div>
@@ -550,10 +880,26 @@ export function StartupScreen() {
             <span className="px-4">ISO POD // PURE SOUND // POCKET HI-FI // NEO-BRUTALISM //</span>
           </div>
         </div>
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute bottom-0 inset-x-0 overflow-hidden border-t-[3px] py-1.5 text-[11px] font-black tracking-[0.22em] uppercase"
+          style={{
+            backgroundColor: 'var(--brutal-accent-2, #ff3d00)',
+            color: 'var(--brutal-accent-2-ink, #ffffff)',
+            borderColor: 'var(--brutal-ink, #0b0b0d)',
+          }}
+        >
+          <div className="flex w-max whitespace-nowrap animate-[brutal-marquee_12s_linear_reverse_infinite]">
+            <span className="px-4">RAW AUDIO // DUAL-TONE // HIGH IMPACT // NO COMPROMISE //</span>
+            <span className="px-4">RAW AUDIO // DUAL-TONE // HIGH IMPACT // NO COMPROMISE //</span>
+            <span className="px-4">RAW AUDIO // DUAL-TONE // HIGH IMPACT // NO COMPROMISE //</span>
+            <span className="px-4">RAW AUDIO // DUAL-TONE // HIGH IMPACT // NO COMPROMISE //</span>
+          </div>
+        </div>
 
         {/* Center Hard-Slam Poster Card */}
         <div
-          className="relative z-10 mx-4 flex w-[min(390px,90vw)] flex-col items-center rounded-[14px] border-[3px] px-7 py-8 animate-[brutal-slam_520ms_cubic-bezier(0.22,1,0.36,1)_both]"
+          className="relative z-10 mx-4 flex w-[min(390px,90vw)] max-h-[82dvh] flex-col items-center rounded-[14px] border-[3px] px-7 py-8 animate-[brutal-slam_520ms_cubic-bezier(0.22,1,0.36,1)_both] [@media(orientation:landscape)_and_(max-height:580px)]:py-4 [@media(orientation:landscape)_and_(max-height:580px)]:px-5"
           style={{
             backgroundColor: 'var(--brutal-surface, #ffffff)',
             borderColor: 'var(--brutal-ink, #0b0b0d)',

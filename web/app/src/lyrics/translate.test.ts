@@ -36,6 +36,23 @@ describe('lyrics translate', () => {
     expect(out[1]).toBe('नमस्ते दुनिया');
   });
 
+  it('supports Hinglish romanized translation and falls back when dt=rm is absent', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(
+        JSON.stringify([
+          [
+            ['मैं तुम्हारा इंतज़ार कर रहा हूँ', 'I am waiting for you', null, null],
+            [null, null, null, 'Main tumhara intezar kar raha hoon'],
+          ],
+        ]),
+        { status: 200 },
+      ),
+    );
+
+    const out = await translateTexts(['I am waiting for you'], 'hinglish');
+    expect(out[0]).toBe('Main tumhara intezar kar raha hoon');
+  });
+
   it('injects matching itunes:key and <translation><text for="..."> into TTML', async () => {
     const ttml = writeTtml([line(1000, 'Tere bina'), line(3000, 'Zindagi se')]);
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(

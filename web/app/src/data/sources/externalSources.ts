@@ -1,4 +1,5 @@
 import { best, type MatchCandidate, type MatchTarget } from '@/data/match/trackMatcher';
+import { searchSongs } from '@/data/music/api';
 import type { Track } from '@/data/music/types';
 import { siteRateLimiter } from '@/lib/rateLimiter';
 import type { ResolvedAddonStream } from './addonClient';
@@ -45,7 +46,7 @@ export async function searchAudiusTracks(query: string, limit = 15): Promise<Tra
     const rows = Array.isArray(json.data) ? json.data : [];
 
     return rows
-      .filter((r) => Boolean(r.id && r.title))
+      .filter((r) => Boolean(r.id && r.title) && (typeof r.duration !== 'number' || r.duration === 0 || r.duration >= 45))
       .slice(0, limit)
       .map((r): Track => ({
         videoId: `audius:${r.id}`,
@@ -76,7 +77,7 @@ export async function fetchAudiusTrendingTracks(limit = 16, genre?: string): Pro
     const rows = Array.isArray(json.data) ? json.data : [];
 
     return rows
-      .filter((r) => Boolean(r.id && r.title))
+      .filter((r) => Boolean(r.id && r.title) && (typeof r.duration !== 'number' || r.duration === 0 || r.duration >= 45))
       .slice(0, limit)
       .map((r): Track => ({
         videoId: `audius:${r.id}`,
@@ -200,14 +201,51 @@ export async function searchExternalTracks(query: string, limit = 15): Promise<T
 }
 
 /**
+ * Resolve a full-length YouTube Music videoId for an external/chart track hint
+ * so chart songs play full-length instead of 30s preview clips.
+ */
+export async function resolveFullLengthYouTubeMatch(hint?: {
+  title?: string;
+  artist?: string;
+  album?: string | null;
+  durationSec?: number | null;
+}): Promise<string | null> {
+  if (!hint?.title) return null;
+  try {
+    const query = `${hint.title} ${hint.artist ?? ''}`.trim();
+    const songs = await searchSongs(query);
+    if (!songs.length) return null;
+    const target: MatchTarget = {
+      title: hint.title,
+      artist: hint.artist ?? '',
+      durationSec: hint.durationSec ?? null,
+      album: hint.album ?? null,
+    };
+    const candidates: Array<MatchCandidate & { track: Track }> = songs.map((t) => ({
+      track: t,
+      title: t.title,
+      artist: t.artists.map((a) => a.name).join(', '),
+      durationSec: t.durationSec,
+      album: t.album?.name ?? null,
+    }));
+    const matched = best(candidates, target);
+    return matched?.track.videoId ?? songs[0]?.videoId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Resolve a playable audio stream from built-in non-YouTube sources (Audius full MP3,
- * or strict match on Audius for a track hint).
+ * or strict match on Audius for a track hint, with optional iTunes 30s preview fallback).
  */
 export async function resolveExternalAudioStream(
   videoId: string,
   hint?: { title?: string; artist?: string; album?: string | null; durationSec?: number | null },
+  options?: { allowPreview?: boolean },
 ): Promise<ResolvedAddonStream | null> {
   if (typeof fetch !== 'function') return null;
+  const allowPreview = options?.allowPreview ?? true;
 
   // 1. Direct Audius track ID
   if (videoId.startsWith('audius:')) {
@@ -292,8 +330,8 @@ export async function resolveExternalAudioStream(
     }
   }
 
-  // 3. Direct iTunes lookup fallback (preview stream if no full match was found)
-  if (videoId.startsWith('itunes:')) {
+  // 3. Direct iTunes lookup fallback (preview stream only when full-length sources are unavailable)
+  if (allowPreview && videoId.startsWith('itunes:')) {
     const itunesId = videoId.slice('itunes:'.length);
     try {
       const res = await fetch(`${ITUNES_BASE}/lookup?id=${encodeURIComponent(itunesId)}`, {

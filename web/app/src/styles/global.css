@@ -47,40 +47,45 @@
   --animate-shimmer: shimmer 1.6s ease-in-out infinite;
   --animate-matching: matching 1.4s ease-in-out infinite alternate;
   --animate-artwork-pulse: artwork-pulse 4.5s ease-in-out infinite;
-  --animate-spring-popup: spring-popup 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-spring-popup: spring-popup 0.34s cubic-bezier(0.16, 1, 0.3, 1);
 
   @keyframes artwork-pulse {
     0%, 100% {
-      transform: translateY(8px) scale(0.96);
-      opacity: 0.38;
-      filter: blur(22px) saturate(200%);
+      transform: translate3d(0, 8px, 0) scale(0.96);
+      opacity: 0.36;
     }
     50% {
-      transform: translateY(12px) scale(1.02);
-      opacity: 0.58;
-      filter: blur(32px) saturate(230%);
+      transform: translate3d(0, 12px, 0) scale(1.03);
+      opacity: 0.56;
     }
   }
   @keyframes spring-popup {
     0% {
       opacity: 0;
-      transform: scale(0.92) translateY(6px);
+      transform: translate3d(0, 8px, 0) scale(0.94);
     }
     100% {
       opacity: 1;
-      transform: scale(1) translateY(0);
+      transform: translate3d(0, 0, 0) scale(1);
     }
   }
 
   @keyframes menu-in {
     from {
       opacity: 0;
-      transform: scale(0.97);
+      transform: translate3d(0, -4px, 0) scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
     }
   }
   @keyframes slide-in {
     from {
-      transform: translateX(100%);
+      transform: translate3d(100%, 0, 0);
+    }
+    to {
+      transform: translate3d(0, 0, 0);
     }
   }
   @keyframes fade {
@@ -90,7 +95,12 @@
   }
   @keyframes zoom {
     from {
-      transform: scale(0.97);
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
     }
   }
   @keyframes fade-in {
@@ -101,7 +111,11 @@
   @keyframes enter {
     from {
       opacity: 0;
-      transform: scale(1.02);
+      transform: translate3d(0, 10px, 0) scale(1.015);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
     }
   }
   /* One label melting into the next, as the quality switcher's text changes. */
@@ -636,74 +650,23 @@
 }
 
 /* ==========================================================================
- * Secondary UI Mode: Neo-Brutalism Dual-Tone System
+ * Secondary UI Mode: Neo-Brutalism (Fixed Mass-Appealing Cobalt & Volt)
  * ========================================================================== */
 :root[data-ui-mode='secondary'] {
-  --brutal-bg: #f5f2eb;
+  --brutal-bg: #f6f4ee;
   --brutal-surface: #ffffff;
   --brutal-ink: #0b0b0d;
-  --brutal-ink-muted: #3b3b44;
-  --brutal-accent: #d9ff00;
-  --brutal-accent-ink: #0b0b0d;
-  --brutal-accent-2: #ff3d00;
-  --brutal-accent-2-ink: #ffffff;
-}
-
-:root[data-ui-mode='secondary'][data-brutal-palette='cyber-cobalt'] {
-  --brutal-bg: #eef2ff;
-  --brutal-surface: #ffffff;
-  --brutal-ink: #090b1a;
-  --brutal-ink-muted: #2e3458;
-  --brutal-accent: #2952ff;
+  --brutal-ink-muted: #3f3f46;
+  --brutal-accent: #2563eb;
   --brutal-accent-ink: #ffffff;
   --brutal-accent-2: #ffe600;
-  --brutal-accent-2-ink: #090b1a;
+  --brutal-accent-2-ink: #0b0b0d;
 }
 
-:root[data-ui-mode='secondary'][data-brutal-palette='crimson-cream'] {
-  --brutal-bg: #fff7ed;
-  --brutal-surface: #ffffff;
-  --brutal-ink: #140b09;
-  --brutal-ink-muted: #4a3531;
-  --brutal-accent: #ff2a3c;
-  --brutal-accent-ink: #ffffff;
-  --brutal-accent-2: #00e5a3;
-  --brutal-accent-2-ink: #140b09;
-}
-
-:root[data-ui-mode='secondary'][data-brutal-palette='tangerine-espresso'] {
-  --brutal-bg: #14110f;
-  --brutal-surface: #1e1916;
-  --brutal-ink: #fff4e6;
-  --brutal-ink-muted: #d6c5b3;
-  --brutal-accent: #ff6b00;
-  --brutal-accent-ink: #14110f;
-  --brutal-accent-2: #ffe14d;
-  --brutal-accent-2-ink: #14110f;
-}
-
-:root[data-ui-mode='secondary'][data-brutal-palette='mint-obsidian'] {
-  --brutal-bg: #0d1110;
-  --brutal-surface: #151c1a;
-  --brutal-ink: #f2fff9;
-  --brutal-ink-muted: #aad4c3;
-  --brutal-accent: #00f5a0;
-  --brutal-accent-ink: #0d1110;
-  --brutal-accent-2: #ff4791;
-  --brutal-accent-2-ink: #ffffff;
-}
-
-:root[data-ui-mode='secondary'][data-brutal-palette='custom'] {
-  --brutal-accent: var(--brutal-custom-accent, #d9ff00);
-  --brutal-accent-2: var(--brutal-custom-accent-2, #ff3d00);
-  --brutal-accent-ink: #0b0b0d;
-  --brutal-accent-2-ink: #ffffff;
-}
-
-/* Dark Mode & AMOLED compatibility for ALL Secondary UI palettes */
+/* Dark Mode & AMOLED compatibility for Secondary UI */
 :root[data-ui-mode='secondary']:has(> head > meta[name='color-scheme'][content='dark']) {
-  --brutal-bg: #0e0e12;
-  --brutal-surface: #18181f;
+  --brutal-bg: #0e0e13;
+  --brutal-surface: #181820;
   --brutal-ink: #f7f5ef;
   --brutal-ink-muted: #c2bfb6;
 }
@@ -1221,24 +1184,22 @@
 @keyframes bento-reveal {
   from {
     opacity: 0;
-    transform: translateY(18px) scale(0.96);
+    transform: translate3d(0, 14px, 0) scale(0.97);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 
 @keyframes lcd-lyric-in {
   from {
     opacity: 0;
-    transform: translateY(5px);
-    filter: blur(2px);
+    transform: translate3d(0, 5px, 0);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
-    filter: blur(0);
+    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -1471,4 +1432,594 @@
   :root[data-ui-mode='bento'] [data-full-screen] .fullscreen-player-col {
     border-radius: 18px !important;
   }
+
+  /* 5th UI (Retro iPod) landscape tuning */
+  :root[data-ui-mode='retro'] main section {
+    padding: 12px 14px !important;
+    border-radius: 12px !important;
+    margin-bottom: 12px !important;
+  }
+
+  :root[data-ui-mode='retro'] [data-full-screen] .fullscreen-player-col {
+    border-radius: 14px !important;
+  }
+
+  /* 6th UI (Anime Studio) landscape tuning */
+  :root[data-ui-mode='anime'] main section {
+    padding: 12px 14px !important;
+    border-radius: 16px !important;
+    margin-bottom: 12px !important;
+    box-shadow: 3px 3px 0 var(--anime-border) !important;
+  }
+
+  :root[data-ui-mode='anime'] [data-full-screen] .fullscreen-player-col {
+    border-radius: 16px !important;
+  }
+
+  /* Ensure all dialogs & modals scroll cleanly in short landscape viewports */
+  [role='dialog']:not([data-full-screen]),
+  [role='alertdialog'] {
+    max-height: calc(100dvh - 16px) !important;
+    overflow-y: auto !important;
+  }
+}
+
+/* ============================================================================
+ * 5th UI Mode: Retro iPod / Skeuomorphic Hardware
+ * ============================================================================ */
+:root[data-ui-mode='retro'] {
+  --retro-metal: #e3e5ea;
+  --retro-metal-hi: #f7f8fa;
+  --retro-metal-lo: #c5c9d3;
+  --retro-lcd: #edf1f5;
+  --retro-bevel: #9ca3af;
+  --retro-ink: #111827;
+  --retro-muted: #4b5563;
+  --retro-blue: #146ef5;
+  --retro-blue-hi: #5bb0ff;
+  --retro-shadow: 0 4px 12px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  --retro-recess: inset 0 2px 5px rgba(0, 0, 0, 0.12), 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
+:root[data-ui-mode='retro']:has(> head > meta[name='color-scheme'][content='dark']) {
+  --retro-metal: #1c1e24;
+  --retro-metal-hi: #2b2e36;
+  --retro-metal-lo: #121317;
+  --retro-lcd: #14191f;
+  --retro-bevel: #383c47;
+  --retro-ink: #f3f4f6;
+  --retro-muted: #9ca3af;
+  --retro-shadow: 0 6px 16px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --retro-recess: inset 0 2px 6px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-ui-mode='retro']:not(:has(> head > meta[name='color-scheme'][content='light'])) {
+    --retro-metal: #1c1e24;
+    --retro-metal-hi: #2b2e36;
+    --retro-metal-lo: #121317;
+    --retro-lcd: #14191f;
+    --retro-bevel: #383c47;
+    --retro-ink: #f3f4f6;
+    --retro-muted: #9ca3af;
+    --retro-shadow: 0 6px 16px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    --retro-recess: inset 0 2px 6px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+}
+
+:root[data-ui-mode='retro'][data-amoled='true']:has(> head > meta[name='color-scheme'][content='dark']) {
+  --retro-metal: #000000;
+  --retro-metal-hi: #14161b;
+  --retro-metal-lo: #000000;
+  --retro-lcd: #0a0d10;
+  --retro-bevel: #262a33;
+}
+
+:root[data-ui-mode='retro'] {
+  --pageBG: var(--retro-metal) !important;
+  --systemPrimary: var(--retro-ink) !important;
+  --systemSecondary: var(--retro-muted) !important;
+  --systemTertiary: var(--retro-muted) !important;
+  --systemQuaternary: color-mix(in srgb, var(--retro-ink) 10%, transparent) !important;
+  --systemQuinary: var(--retro-lcd) !important;
+  --keyColor: var(--retro-blue) !important;
+  --keyColorBG: var(--retro-blue) !important;
+  --selectionColor: var(--retro-blue) !important;
+  --glassMaterialBackground: linear-gradient(180deg, var(--retro-metal-hi), var(--retro-metal-lo)) !important;
+  --opaqueShelfBG: var(--retro-lcd) !important;
+  --shelfBG: var(--retro-lcd) !important;
+  --navSidebarSelectedState: linear-gradient(180deg, var(--retro-blue-hi), var(--retro-blue)) !important;
+}
+
+:root[data-ui-mode='retro'] body {
+  background: linear-gradient(180deg, var(--retro-metal-hi) 0%, var(--retro-metal) 45%, var(--retro-metal-lo) 100%);
+}
+
+:root[data-ui-mode='retro'] main section {
+  background: var(--retro-lcd);
+  border: 1px solid var(--retro-bevel);
+  border-radius: 14px;
+  padding: 1.15rem;
+  margin-bottom: 1.15rem;
+  box-shadow: var(--retro-recess);
+}
+
+:root[data-ui-mode='retro'] .glass-pill {
+  border-radius: 16px !important;
+  background: linear-gradient(180deg, var(--retro-metal-hi), var(--retro-metal-lo)) !important;
+  border: 1px solid var(--retro-bevel) !important;
+  box-shadow: var(--retro-shadow) !important;
+}
+
+:root[data-ui-mode='retro'] .glass-pill::before {
+  background: transparent !important;
+}
+
+:root[data-ui-mode='retro'] .artwork-stroke {
+  border-radius: 8px !important;
+  border: 1px solid var(--retro-bevel);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+:root[data-ui-mode='retro'] a:hover .artwork-stroke,
+:root[data-ui-mode='retro'] button:hover .artwork-stroke {
+  transform: translateY(-1px) scale(1.015);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+:root[data-ui-mode='retro'] [data-full-screen] {
+  --systemPrimary: var(--retro-ink);
+  --systemSecondary: var(--retro-muted);
+  --systemTertiary: var(--retro-muted);
+  --systemQuinary: var(--retro-lcd);
+  background: linear-gradient(180deg, var(--retro-metal-hi) 0%, var(--retro-metal) 55%, var(--retro-metal-lo) 100%) !important;
+  color: var(--retro-ink) !important;
+}
+
+:root[data-ui-mode='retro'] [data-full-screen] > .-z-2 {
+  display: none !important;
+}
+
+:root[data-ui-mode='retro'] [data-full-screen] .fullscreen-player-col {
+  background: var(--retro-lcd) !important;
+  border: 1px solid var(--retro-bevel) !important;
+  border-radius: 16px !important;
+  padding: 1.35rem !important;
+  box-shadow: var(--retro-recess) !important;
+}
+
+@keyframes retro-lcd-boot {
+  0% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ============================================================================
+ * 6th UI Mode: Anime Studio (Sakura Neon, Manga Panels & Cel-Shaded Layout)
+ * ============================================================================ */
+:root[data-ui-mode='anime'] {
+  --anime-bg: #fff5fa;
+  --anime-card: #ffffff;
+  --anime-ink: #18122b;
+  --anime-muted: #5b527a;
+  --anime-pink: #ff3e8a;
+  --anime-cyan: #00b8e6;
+  --anime-violet: #7c3aed;
+  --anime-gold: #ffb800;
+  --anime-border: #18122b;
+  --anime-shadow: 4px 4px 0 #18122b, 0 10px 24px rgba(255, 62, 138, 0.14);
+  --anime-shadow-hover: 6px 6px 0 #ff3e8a, 0 14px 28px rgba(0, 184, 230, 0.18);
+}
+
+:root[data-ui-mode='anime']:has(> head > meta[name='color-scheme'][content='dark']) {
+  --anime-bg: #0d0a1a;
+  --anime-card: #17122b;
+  --anime-ink: #fdf7ff;
+  --anime-muted: #b9aed8;
+  --anime-pink: #ff4d94;
+  --anime-cyan: #22d3ee;
+  --anime-border: rgba(255, 77, 148, 0.52);
+  --anime-shadow: 4px 4px 0 #ff4d94, 0 12px 28px rgba(34, 211, 238, 0.12);
+  --anime-shadow-hover: 6px 6px 0 #22d3ee, 0 16px 32px rgba(255, 77, 148, 0.22);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-ui-mode='anime']:not(:has(> head > meta[name='color-scheme'][content='light'])) {
+    --anime-bg: #0d0a1a;
+    --anime-card: #17122b;
+    --anime-ink: #fdf7ff;
+    --anime-muted: #b9aed8;
+    --anime-pink: #ff4d94;
+    --anime-cyan: #22d3ee;
+    --anime-border: rgba(255, 77, 148, 0.52);
+    --anime-shadow: 4px 4px 0 #ff4d94, 0 12px 28px rgba(34, 211, 238, 0.12);
+    --anime-shadow-hover: 6px 6px 0 #22d3ee, 0 16px 32px rgba(255, 77, 148, 0.22);
+  }
+}
+
+:root[data-ui-mode='anime'][data-amoled='true']:has(> head > meta[name='color-scheme'][content='dark']) {
+  --anime-bg: #000000;
+  --anime-card: #0c0918;
+  --anime-border: rgba(255, 77, 148, 0.6);
+}
+
+:root[data-ui-mode='anime'] {
+  --pageBG: var(--anime-bg) !important;
+  --systemPrimary: var(--anime-ink) !important;
+  --systemSecondary: var(--anime-muted) !important;
+  --systemTertiary: var(--anime-muted) !important;
+  --systemQuaternary: color-mix(in srgb, var(--anime-pink) 14%, transparent) !important;
+  --systemQuinary: var(--anime-card) !important;
+  --keyColor: var(--anime-pink) !important;
+  --keyColorBG: var(--anime-pink) !important;
+  --selectionColor: var(--anime-pink) !important;
+  --glassMaterialBackground: color-mix(in srgb, var(--anime-card) 92%, transparent) !important;
+  --opaqueShelfBG: var(--anime-card) !important;
+  --shelfBG: var(--anime-card) !important;
+  --navSidebarSelectedState: linear-gradient(135deg, var(--anime-pink), var(--anime-violet)) !important;
+}
+
+:root[data-ui-mode='anime'] body {
+  font-family: 'M PLUS Rounded 1c', 'DM Sans', system-ui, sans-serif;
+  background-color: var(--anime-bg);
+  background-image:
+    radial-gradient(circle at 12% 14%, color-mix(in srgb, var(--anime-pink) 16%, transparent), transparent 42%),
+    radial-gradient(circle at 88% 82%, color-mix(in srgb, var(--anime-cyan) 15%, transparent), transparent 44%);
+}
+
+:root[data-ui-mode='anime'] main h1,
+:root[data-ui-mode='anime'] main h2 {
+  font-family: 'M PLUS Rounded 1c', 'DM Sans', system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Manga-panel cel-shaded cards across Home & all pages */
+:root[data-ui-mode='anime'] main section {
+  position: relative;
+  background-color: var(--anime-card);
+  border: 2px solid var(--anime-border);
+  border-radius: 20px;
+  padding: 1.25rem;
+  margin-bottom: 1.35rem;
+  box-shadow: var(--anime-shadow);
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 200ms ease;
+}
+
+:root[data-ui-mode='anime'] main section:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: var(--anime-shadow-hover);
+}
+
+:root[data-ui-mode='anime'] .glass-pill {
+  border-radius: 20px !important;
+  background-color: var(--anime-card) !important;
+  border: 2px solid var(--anime-border) !important;
+  box-shadow: var(--anime-shadow) !important;
+}
+
+:root[data-ui-mode='anime'] .glass-pill::before {
+  background: transparent !important;
+}
+
+:root[data-ui-mode='anime'] .artwork-stroke {
+  border-radius: 14px !important;
+  border: 2px solid var(--anime-border);
+  box-shadow: 3px 3px 0 color-mix(in srgb, var(--anime-pink) 75%, transparent);
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms ease;
+}
+
+:root[data-ui-mode='anime'] a:hover .artwork-stroke,
+:root[data-ui-mode='anime'] button:hover .artwork-stroke {
+  transform: translate(-2px, -2px) scale(1.02);
+  box-shadow: 5px 5px 0 var(--anime-cyan);
+}
+
+:root[data-ui-mode='anime'] [data-full-screen] {
+  --systemPrimary: var(--anime-ink);
+  --systemSecondary: var(--anime-muted);
+  --systemTertiary: var(--anime-muted);
+  --systemQuinary: var(--anime-card);
+  background-color: var(--anime-bg) !important;
+  background-image:
+    radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--anime-pink) 24%, transparent), transparent 52%),
+    radial-gradient(circle at 82% 80%, color-mix(in srgb, var(--anime-cyan) 22%, transparent), transparent 52%) !important;
+  color: var(--anime-ink) !important;
+}
+
+:root[data-ui-mode='anime'] [data-full-screen] > .-z-2 {
+  display: none !important;
+}
+
+:root[data-ui-mode='anime'] [data-full-screen] .fullscreen-player-col {
+  background-color: var(--anime-card) !important;
+  border: 2px solid var(--anime-border) !important;
+  border-radius: 22px !important;
+  padding: 1.4rem !important;
+  box-shadow: var(--anime-shadow) !important;
+}
+
+@keyframes anime-slash-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) skewX(-4deg) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) skewX(0deg) scale(1);
+  }
+}
+
+@keyframes anime-petal-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(14deg);
+  }
+}
+
+/* ============================================================================
+ * Universal Component Styling Across ALL 6 UI Themes
+ * (Sidebar, Modals, Dialogs, Menus, Inputs, SidePanel & Mobile Bars)
+ * ============================================================================ */
+
+/* 1. Glassmorphism (Primary) */
+:root[data-ui-mode='primary'] [role='dialog']:not([data-full-screen]),
+:root[data-ui-mode='primary'] [role='alertdialog'],
+:root[data-ui-mode='primary'] [role='menu'] {
+  backdrop-filter: blur(28px) saturate(185%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(185%) !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.22) !important;
+}
+
+/* 2. Neo-Brutalism (Secondary) */
+:root[data-ui-mode='secondary'] [role='dialog']:not([data-full-screen]),
+:root[data-ui-mode='secondary'] [role='alertdialog'],
+:root[data-ui-mode='secondary'] [role='menu'] {
+  border-radius: 10px !important;
+  border: 3px solid var(--brutal-ink, #0b0b0d) !important;
+  box-shadow: 6px 6px 0 var(--brutal-ink, #0b0b0d) !important;
+}
+
+/* 3. Editorial Magazine */
+:root[data-ui-mode='editorial'] aside {
+  border-right: 1px solid var(--ed-ink) !important;
+}
+
+:root[data-ui-mode='editorial'] aside a,
+:root[data-ui-mode='editorial'] aside button {
+  border-radius: 3px !important;
+}
+
+:root[data-ui-mode='editorial'] [role='dialog']:not([data-full-screen]),
+:root[data-ui-mode='editorial'] [role='alertdialog'],
+:root[data-ui-mode='editorial'] [role='menu'] {
+  border-radius: 4px !important;
+  border: 2px solid var(--ed-ink) !important;
+  background-color: var(--ed-paper) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.16) !important;
+}
+
+:root[data-ui-mode='editorial'] input:not([type='range']):not([type='color']),
+:root[data-ui-mode='editorial'] select {
+  border-radius: 4px !important;
+  border: 1px solid var(--ed-ink) !important;
+}
+
+/* 4. Bento Grids */
+:root[data-ui-mode='bento'] aside a,
+:root[data-ui-mode='bento'] aside button {
+  border-radius: 14px !important;
+}
+
+:root[data-ui-mode='bento'] [role='dialog']:not([data-full-screen]),
+:root[data-ui-mode='bento'] [role='alertdialog'],
+:root[data-ui-mode='bento'] [role='menu'] {
+  border-radius: 24px !important;
+  background-color: var(--bento-tile) !important;
+  box-shadow: var(--bento-shadow-hover) !important;
+}
+
+:root[data-ui-mode='bento'] input:not([type='range']):not([type='color']),
+:root[data-ui-mode='bento'] select {
+  border-radius: 12px !important;
+}
+
+/* 5. Retro iPod / Skeuomorphic */
+:root[data-ui-mode='retro'] aside {
+  background: linear-gradient(180deg, var(--retro-metal-hi), var(--retro-metal-lo)) !important;
+  border-right: 1px solid var(--retro-bevel) !important;
+}
+
+:root[data-ui-mode='retro'] aside a[aria-current='page'],
+:root[data-ui-mode='retro'] aside a[data-active='true'] {
+  color: #ffffff !important;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+
+:root[data-ui-mode='retro'] [role='dialog']:not([data-full-screen]),
+:root[data-ui-mode='retro'] [role='alertdialog'],
+:root[data-ui-mode='retro'] [role='menu'] {
+  border-radius: 16px !important;
+  border: 1px solid var(--retro-bevel) !important;
+  background: linear-gradient(180deg, var(--retro-metal-hi), var(--retro-metal)) !important;
+  box-shadow: var(--retro-shadow) !important;
+}
+
+:root[data-ui-mode='retro'] input:not([type='range']):not([type='color']),
+:root[data-ui-mode='retro'] select {
+  border-radius: 8px !important;
+  border: 1px solid var(--retro-bevel) !important;
+  background-color: var(--retro-lcd) !important;
+  box-shadow: var(--retro-recess) !important;
+}
+
+/* 6. Anime Studio */
+:root[data-ui-mode='anime'] aside {
+  border-right: 2px solid var(--anime-border) !important;
+}
+
+:root[data-ui-mode='anime'] aside a,
+:root[data-ui-mode='anime'] aside button {
+  border-radius: 14px !important;
+}
+
+:root[data-ui-mode='anime'] aside a[aria-current='page'],
+:root[data-ui-mode='anime'] aside a[data-active='true'] {
+  color: #ffffff !important;
+}
+
+:root[data-ui-mode='anime'] [role='dialog']:not([data-full-screen]),
+:root[data-ui-mode='anime'] [role='alertdialog'],
+:root[data-ui-mode='anime'] [role='menu'] {
+  border-radius: 22px !important;
+  border: 2px solid var(--anime-border) !important;
+  background-color: var(--anime-card) !important;
+  box-shadow: var(--anime-shadow) !important;
+}
+
+:root[data-ui-mode='anime'] input:not([type='range']):not([type='color']),
+:root[data-ui-mode='anime'] select {
+  border-radius: 12px !important;
+  border: 2px solid var(--anime-border) !important;
+}
+
+/* ============================================================================
+ * Smooth Route View Transitions (Home, Search, Library, Album, Artist)
+ * ============================================================================ */
+@media (prefers-reduced-motion: no-preference) {
+  #scrollable-page {
+    view-transition-name: page-stage;
+  }
+
+  ::view-transition-old(page-stage) {
+    animation: 150ms cubic-bezier(0.4, 0, 1, 1) both vt-fade-out;
+  }
+
+  ::view-transition-new(page-stage) {
+    animation: 210ms cubic-bezier(0.22, 1, 0.36, 1) both vt-fade-in;
+  }
+}
+
+@keyframes vt-fade-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes vt-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* ============================================================================
+ * Theme-Matched PlayerBar & MiniPlayer Polish Across All 6 UI Modes
+ * ============================================================================ */
+:root[data-ui-mode='primary'] [data-mini-player],
+:root[data-ui-mode='primary'] .glass-pill {
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.28) !important;
+}
+
+:root[data-ui-mode='secondary'] [data-mini-player] {
+  border-radius: 12px !important;
+  border: 3px solid var(--brutal-ink, #0b0b0d) !important;
+  background: var(--brutal-surface, #ffffff) !important;
+  box-shadow: 6px 6px 0 var(--brutal-ink, #0b0b0d) !important;
+}
+
+:root[data-ui-mode='editorial'] [data-mini-player] {
+  border-radius: 4px !important;
+  border: 2px solid var(--ed-ink) !important;
+  border-top: 3px solid var(--ed-accent, #dc2626) !important;
+  background: var(--ed-paper) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14) !important;
+}
+
+:root[data-ui-mode='editorial'] .glass-pill {
+  border-radius: 4px !important;
+  border-top: 2px solid var(--ed-accent, #dc2626) !important;
+}
+
+:root[data-ui-mode='bento'] [data-mini-player] {
+  border-radius: 24px !important;
+  background: var(--bento-tile) !important;
+  box-shadow: var(--bento-shadow-hover) !important;
+}
+
+:root[data-ui-mode='retro'] [data-mini-player] {
+  border-radius: 16px !important;
+  border: 1px solid var(--retro-bevel) !important;
+  background: linear-gradient(180deg, var(--retro-metal-hi), var(--retro-metal-lo)) !important;
+  box-shadow: var(--retro-shadow) !important;
+}
+
+:root[data-ui-mode='anime'] [data-mini-player] {
+  border-radius: 20px !important;
+  border: 2px solid var(--anime-border) !important;
+  background: var(--anime-card) !important;
+  box-shadow: var(--anime-shadow) !important;
+}
+
+:root[data-ui-mode='anime'] .glass-pill {
+  background-image: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--anime-pink) 10%, transparent),
+    transparent 40%,
+    color-mix(in srgb, var(--anime-cyan) 10%, transparent)
+  ) !important;
+}
+
+/* ============================================================================
+ * Theme-Matched App-Wide Typography (--font-family & Display Headings)
+ * ============================================================================ */
+:root[data-ui-mode='primary'] {
+  --keyColor: #fa243c !important;
+  --keyColorBG: #fa243c !important;
+  --selectionColor: #fa243c !important;
+  --font-family: 'ISOpod SF Pro Display', -apple-system, BlinkMacSystemFont, 'DM Sans', system-ui, sans-serif;
+}
+
+:root[data-ui-mode='secondary'] {
+  --font-family: 'Space Grotesk', 'DM Sans', system-ui, sans-serif;
+}
+
+:root[data-ui-mode='editorial'] {
+  --font-family: Georgia, 'Times New Roman', serif;
+}
+
+:root[data-ui-mode='editorial'] .type-header-emphasized,
+:root[data-ui-mode='editorial'] .type-large-title-emphasized,
+:root[data-ui-mode='editorial'] .type-title-1-emphasized,
+:root[data-ui-mode='editorial'] .type-title-2-emphasized {
+  font-family: var(--ed-display) !important;
+}
+
+:root[data-ui-mode='bento'] {
+  --font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'DM Sans', system-ui, sans-serif;
+}
+
+:root[data-ui-mode='retro'] {
+  --font-family: 'Lucida Grande', 'Trebuchet MS', 'Geneva', system-ui, sans-serif;
+}
+
+:root[data-ui-mode='anime'] {
+  --font-family: 'M PLUS Rounded 1c', 'DM Sans', system-ui, sans-serif;
+}
+
+body,
+button,
+input,
+select,
+textarea {
+  font-family: var(--font-family);
 }

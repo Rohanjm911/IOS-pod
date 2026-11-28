@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { PrefetchLink } from '@/components/PrefetchLink';
 import { shelfHeader, shelfKinds, shelfList, shelfSection, type ShelfKind } from '@/components/shelf';
 import type { MusicItem, Shelf, Track } from '@/data/music/types';
@@ -36,7 +36,9 @@ export function ShelfScroller({ kind, children }: { kind: ShelfKind; children: R
   const measure = useCallback(() => {
     const el = list.current;
     if (!el) return;
-    setEdges({ start: el.scrollLeft <= 2, end: el.scrollLeft + el.clientWidth >= el.scrollWidth - 2 });
+    const start = el.scrollLeft <= 2;
+    const end = el.scrollLeft + el.clientWidth >= el.scrollWidth - 2;
+    setEdges((prev) => (prev.start === start && prev.end === end ? prev : { start, end }));
   }, []);
 
   useEffect(() => {
@@ -116,7 +118,17 @@ export const trackItem = (track: Track): MusicItem => ({
  * Songs in four rows, as the phone's Top Songs and Recently Played: any one
  * plays the whole shelf from there.
  */
-export function TrackShelf({ title, to, tracks, source }: { title: string; to?: string | null; tracks: Track[]; source: QueueSource }) {
+export const TrackShelf = memo(function TrackShelf({
+  title,
+  to,
+  tracks,
+  source,
+}: {
+  title: string;
+  to?: string | null;
+  tracks: Track[];
+  source: QueueSource;
+}) {
   return (
     <section className={shelfSection} aria-label={title}>
       <ShelfTitle title={title} to={to} />
@@ -129,10 +141,10 @@ export function TrackShelf({ title, to, tracks, source }: { title: string; to?: 
       </ShelfScroller>
     </section>
   );
-}
+});
 
 /** A titled horizontal shelf (report §2): grid columns per breakpoint, scroll-snap, hover arrows. */
-export function ShelfView({ shelf }: { shelf: Shelf }) {
+export const ShelfView = memo(function ShelfView({ shelf }: { shelf: Shelf }) {
   return (
     <section className={shelfSection} aria-label={shelf.title}>
       <ShelfTitle title={shelf.title} to={shelf.seeAll ? browseHref(shelf.seeAll) : null} />
@@ -143,10 +155,10 @@ export function ShelfView({ shelf }: { shelf: Shelf }) {
       </ShelfScroller>
     </section>
   );
-}
+});
 
 /** Shelves in order, each its own section. */
-export function Shelves({ shelves }: { shelves: Shelf[] }) {
+export const Shelves = memo(function Shelves({ shelves }: { shelves: Shelf[] }) {
   return (
     <>
       {shelves.map((shelf, i) => (
@@ -154,4 +166,4 @@ export function Shelves({ shelves }: { shelves: Shelf[] }) {
       ))}
     </>
   );
-}
+});

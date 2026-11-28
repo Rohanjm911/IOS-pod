@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { applySinkToTargets, useDacAudio } from './dacAudio';
 
 export type Gains10 = [number, number, number, number, number, number, number, number, number, number];
 
@@ -211,7 +212,25 @@ export function getAudioContext(): AudioContext | null {
       window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!AudioContextClass) return null;
-    audioCtx = new AudioContextClass({ latencyHint: 'playback' });
+    const { preferredSampleRate, sinkId } = useDacAudio.getState();
+    try {
+      audioCtx = new AudioContextClass({
+        latencyHint: 'playback',
+        ...(preferredSampleRate !== 'native' ? { sampleRate: preferredSampleRate } : {}),
+      });
+    } catch {
+      audioCtx = new AudioContextClass({ latencyHint: 'playback' });
+    }
+    useDacAudio.getState().setActiveSampleRateHz(audioCtx.sampleRate);
+    if (sinkId !== 'default') {
+      void applySinkToTargets(sinkId, [], audioCtx);
+    }
+    audioCtx.addEventListener('statechange', () => {
+      if (audioCtx?.state === 'running' && eqFilters.length > 0) {
+        const { enabled, gains, bassBoost, bassBoostEnabled } = useEqualizer.getState();
+        applyWebAudioSettings(enabled, gains, bassBoost, bassBoostEnabled);
+      }
+    });
   }
   return audioCtx;
 }
@@ -219,7 +238,15 @@ export function getAudioContext(): AudioContext | null {
 export function resumeAudioContext(): void {
   const ctx = getAudioContext();
   if (ctx && (ctx.state === 'suspended' || (ctx.state as string) === 'interrupted')) {
-    void ctx.resume();
+    void ctx
+      .resume()
+      .then(() => {
+        if (ctx.state === 'running' && eqFilters.length > 0) {
+          const { enabled, gains, bassBoost, bassBoostEnabled } = useEqualizer.getState();
+          applyWebAudioSettings(enabled, gains, bassBoost, bassBoostEnabled);
+        }
+      })
+      .catch(() => {});
   }
 }
 
@@ -339,6 +366,11 @@ export function connectAudioElementToEqualizer(
   return deckGain;
 }
 
+export function syncEqualizerForDacMode(): void {
+  const { enabled, gains, bassBoost, bassBoostEnabled } = useEqualizer.getState();
+  applyWebAudioSettings(enabled, gains, bassBoost, bassBoostEnabled);
+}
+
 export function applyEqualizerVolumes(level: number, faderGains: number[]): boolean {
   const ctx = getAudioContext();
   if (!ctx || !eqMasterGain) return false;
@@ -367,22 +399,32 @@ function applyWebAudioSettings(
 
   resumeAudioContext();
   const now = ctx.currentTime;
+  const dacBypass = useDacAudio.getState().dacDirectMode;
+  const effectiveEnabled = enabled && !dacBypass;
 
   eqFilters.forEach((filter, idx) => {
-    const targetGain = enabled ? (gains[idx] ?? 0) : 0;
+    const targetGain = effectiveEnabled ? (gains[idx] ?? 0) : 0;
+    if (ctx.state !== 'running') {
+      filter.gain.value = targetGain;
+      return;
+    }
     try {
-      filter.gain.setTargetAtTime(targetGain, now, 0.02);
+      filter.gain.setTargetAtTime(targetGain, now, 0.015);
     } catch {
-      filter.gain.setValueAtTime(targetGain, now);
+      filter.gain.value = targetGain;
     }
   });
 
   if (bassFilter) {
-    const targetBass = enabled && bassBoostEnabled ? bassBoost : 0;
-    try {
-      bassFilter.gain.setTargetAtTime(targetBass, now, 0.02);
-    } catch {
-      bassFilter.gain.setValueAtTime(targetBass, now);
+    const targetBass = effectiveEnabled && bassBoostEnabled ? bassBoost : 0;
+    if (ctx.state !== 'running') {
+      bassFilter.gain.value = targetBass;
+    } else {
+      try {
+        bassFilter.gain.setTargetAtTime(targetBass, now, 0.015);
+      } catch {
+        bassFilter.gain.value = targetBass;
+      }
     }
   }
 }
@@ -393,6 +435,15 @@ export function attachEqualizerToContext(
   destinationNode?: AudioNode,
 ): { inputNode: AudioNode; outputNode: AudioNode } {
   const { input, output, analyser } = ensureEqualizerGraph(ctx);
+  // Hand off from direct deckGains -> eqMasterGain to AutoMix's Deck -> master -> input
+  // so the same MediaElementAudioSourceNode is never routed twice in parallel.
+  if (eqMasterGain) {
+    try {
+      eqMasterGain.disconnect();
+    } catch {
+      // ignore
+    }
+  }
   try {
     sourceNode.connect(input);
   } catch {

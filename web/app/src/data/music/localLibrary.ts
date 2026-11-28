@@ -1,5 +1,6 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import { create } from 'zustand';
+import { recordFavoriteSignal, recordPlaySignal } from './tasteProfile';
 import type { Track } from './types';
 
 export interface LocalPlaylist {
@@ -17,11 +18,93 @@ interface SavedLocalLibrary {
 
 const STORAGE_KEY = 'isopod:local-library';
 const LEGACY_STORAGE_KEY = 'bitchord:local-library';
+const PLAY_STATS_KEY = 'isopod:play-stats';
+const PLAY_CYCLE_KEY = 'isopod:play-cycle-idx';
 const IDB_NAME = 'isopod-library';
 const IDB_STORE = 'library';
 const IDB_KEY = 'state';
 const MAX_RECENT = 100;
 const MAX_FAVORITES = 500;
+
+interface PlayStat {
+  count: number;
+  lastPlayed: number;
+}
+
+function readPlayCounts(): Record<string, PlayStat> {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(PLAY_STATS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, PlayStat>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function incrementPlayCount(videoId: string): void {
+  if (typeof localStorage === 'undefined' || !videoId) return;
+  try {
+    const stats = readPlayCounts();
+    const prev = stats[videoId];
+    stats[videoId] = {
+      count: (prev?.count ?? 0) + 1,
+      lastPlayed: Date.now(),
+    };
+    const keys = Object.keys(stats);
+    if (keys.length > 250) {
+      keys
+        .sort((a, b) => (stats[b]?.lastPlayed ?? 0) - (stats[a]?.lastPlayed ?? 0))
+        .slice(250)
+        .forEach((k) => {
+          delete stats[k];
+        });
+    }
+    localStorage.setItem(PLAY_STATS_KEY, JSON.stringify(stats));
+  } catch {
+    // ignore storage quota errors
+  }
+}
+
+/** Returns user tracks ranked by repeat count and recency for heavy-rotation recommendations. */
+export function getTopRepeatedTracks(tracks: readonly Track[], limit = 12): Track[] {
+  if (tracks.length === 0) return [];
+  const stats = readPlayCounts();
+  const seen = new Set<string>();
+  const unique = tracks.filter((t) => {
+    if (!t.videoId || seen.has(t.videoId)) return false;
+    seen.add(t.videoId);
+    return true;
+  });
+  return unique
+    .map((track, idx) => {
+      const stat = stats[track.videoId];
+      const count = stat?.count ?? 1;
+      const recencyBonus = Math.max(0, 1 - idx * 0.04);
+      const score = count * 2 + recencyBonus;
+      return { track, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((entry) => entry.track);
+}
+
+/** Rotates through the user's top repeated tracks in a deterministic cycle across refreshes. */
+export function nextCyclicSeedTrack(tracks: readonly Track[]): Track | null {
+  const pool = getTopRepeatedTracks(tracks, 8);
+  if (pool.length === 0) return null;
+  if (typeof localStorage === 'undefined') return pool[0] ?? null;
+  try {
+    const raw = localStorage.getItem(PLAY_CYCLE_KEY);
+    const prevIdx = raw ? Number.parseInt(raw, 10) : -1;
+    const nextIdx = Number.isFinite(prevIdx) ? (prevIdx + 1) % pool.length : 0;
+    localStorage.setItem(PLAY_CYCLE_KEY, String(nextIdx));
+    return pool[nextIdx] ?? pool[0] ?? null;
+  } catch {
+    return pool[0] ?? null;
+  }
+}
 
 let idbPromise: Promise<IDBPDatabase> | null = null;
 function getDb(): Promise<IDBPDatabase> | null {
@@ -147,6 +230,7 @@ export const useLocalLibrary = create<LocalLibraryState>()((set, get) => {
       const favorites = exists
         ? get().favorites.filter((t) => t.videoId !== track.videoId)
         : [track, ...get().favorites].slice(0, MAX_FAVORITES);
+      recordFavoriteSignal(track, !exists);
       commit({ favorites });
       return !exists;
     },
@@ -154,6 +238,8 @@ export const useLocalLibrary = create<LocalLibraryState>()((set, get) => {
     recordPlayed: (track) => {
       if (!track.videoId || !track.title) return;
       const recentTracks = [track, ...get().recentTracks.filter((t) => t.videoId !== track.videoId)].slice(0, MAX_RECENT);
+      incrementPlayCount(track.videoId);
+      recordPlaySignal(track);
       commit({ recentTracks });
     },
     updateTrackArtwork: (videoId, artworkUrl) => {

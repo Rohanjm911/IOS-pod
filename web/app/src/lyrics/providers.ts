@@ -378,13 +378,17 @@ async function paxGeneric(q: LyricsQuery, key: string): Promise<Parsed | null> {
 }
 
 export async function paxSenixSpotify(q: LyricsQuery, key: string): Promise<Parsed | null> {
-  if (!key) return null;
+  if (!key) {
+    return (await paxSenix(q)) ?? lrclib(q);
+  }
   const id = bestCandidate(json(await paxApi('spotify/search', { q: `${q.title} ${q.artist}` }, key)), q)?.id;
   return (id ? paxResponse(await paxApi('lyrics/spotify', { id }, key)) : null) ?? paxGeneric(q, key);
 }
 
 export async function paxSenixMusixmatch(q: LyricsQuery, key: string): Promise<Parsed | null> {
-  if (!key) return null;
+  if (!key) {
+    return (await musixmatch(q)) ?? paxSenix(q);
+  }
   const found = paxResponse(await paxApi('lyrics/musixmatch', { t: q.title, a: q.artist, d: String(Math.floor(q.durationMs / 1000)) }, key));
   return found ?? paxGeneric(q, key);
 }

@@ -1,5 +1,5 @@
-import { Check, Monitor, Moon, Palette, Sparkles, Sun, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Check, Monitor, Moon, Palette, Sun, X } from 'lucide-react';
+import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   THEME_PRESETS,
@@ -14,36 +14,17 @@ interface ThemeModalProps {
   onClose: () => void;
 }
 
-const QUICK_COLORS = [
-  '#fa2d48', // Classic Apple Music Rose
-  '#ff2d55', // iOS Hot Pink
-  '#7c3aed', // Electric Purple
-  '#007aff', // iOS Royal Blue
-  '#00f2fe', // Cyber Cyan
-  '#059669', // Emerald Mint
-  '#30d158', // Neon Green
-  '#ff9500', // Sunset Tangerine
-  '#eab308', // Radiant Gold
-  '#ef4444', // Fiery Red
-];
-
 export function ThemeModal({ open, onClose }: ThemeModalProps) {
   const {
     scheme,
-    preset,
     amoled,
     glass,
-    customAccent,
     systemDark,
     setColorScheme,
-    setThemePreset,
     setAmoledBlack,
     setGlassmorphism,
-    setCustomAccent,
   } = useThemeSettings();
 
-  const isDarkActive = scheme === 'dark' || (scheme === 'system' && systemDark);
-  const [hexInput, setHexInput] = useState(customAccent);
   const playerStyle = useUi((s) => s.playerStyle);
   const setPlayerStyle = useUi((s) => s.setPlayerStyle);
   const uiMode = useUi((s) => s.uiMode);
@@ -53,6 +34,7 @@ export function ThemeModal({ open, onClose }: ThemeModalProps) {
   const customBrutalSecondary = useUi((s) => s.customBrutalSecondary);
   const setBrutalPalette = useUi((s) => s.setBrutalPalette);
   const setCustomBrutalColors = useUi((s) => s.setCustomBrutalColors);
+  const activeModeMeta = APP_UI_MODES.find((m) => m.id === uiMode) ?? APP_UI_MODES[0]!;
 
   useEffect(() => {
     if (!open) return;
@@ -241,168 +223,45 @@ export function ThemeModal({ open, onClose }: ThemeModalProps) {
                       {isSelected && <Check size={14} className="text-key" />}
                     </span>
                     <span className="type-caption-2 text-tertiary mt-0.5">{opt.description}</span>
+                    <span className="mt-1.5 flex items-center gap-1" aria-hidden="true">
+                      {opt.swatches.map((hex) => (
+                        <span
+                          key={hex}
+                          className="size-3 rounded-full border border-white/20"
+                          style={{ backgroundColor: hex }}
+                        />
+                      ))}
+                    </span>
                   </button>
                 );
               })}
             </div>
-
-            {/* Dual-Tone Neo-Brutalism Color Picker */}
-            <div className="mt-2.5 flex flex-col gap-2 rounded-[12px] border border-divider bg-quinary/40 p-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="type-caption-2 text-tertiary uppercase tracking-wider font-semibold">
-                  Neo-Brutalism Dual-Tone
-                </span>
-                <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-1 type-caption-2 text-secondary cursor-pointer">
-                    <span>T1</span>
-                    <input
-                      type="color"
-                      value={customBrutalPrimary}
-                      onChange={(e) => setCustomBrutalColors(e.target.value, customBrutalSecondary)}
-                      className="size-5 cursor-pointer rounded border-0 bg-transparent p-0"
-                    />
-                  </label>
-                  <label className="flex items-center gap-1 type-caption-2 text-secondary cursor-pointer">
-                    <span>T2</span>
-                    <input
-                      type="color"
-                      value={customBrutalSecondary}
-                      onChange={(e) => setCustomBrutalColors(customBrutalPrimary, e.target.value)}
-                      className="size-5 cursor-pointer rounded border-0 bg-transparent p-0"
-                    />
-                  </label>
-                </div>
-              </div>
-              <div className="grid grid-cols-5 gap-1.5">
-                {BRUTAL_PALETTES.map((p) => {
-                  const active = brutalPalette === p.id;
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      title={p.label}
-                      onClick={() => setBrutalPalette(p.id)}
-                      className={`flex flex-col items-center gap-1 rounded-[8px] border p-1.5 transition ${
-                        active ? 'border-key bg-quaternary' : 'border-divider bg-quinary/60 hover:bg-quaternary'
-                      }`}
-                    >
-                      <span
-                        className="grid h-4 w-full grid-cols-2 overflow-hidden rounded-[4px] border"
-                        style={{ borderColor: p.ink }}
-                      >
-                        <span style={{ backgroundColor: p.accent }} />
-                        <span style={{ backgroundColor: p.accent2 }} />
-                      </span>
-                      <span className="w-full truncate text-center text-[10px] text-primary">{p.label.split(' ')[0]}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
           </div>
 
-          {/* iOS Accent Presets */}
+          {/* Fixed Signature Color Scheme */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="type-caption-2 text-tertiary uppercase tracking-wider font-semibold">
-                iOS Color Palettes
+                Signature Color Scheme
               </span>
-              <span className="type-caption-2 text-tertiary">{THEME_PRESETS.length} presets</span>
+              <span className="type-caption-2 text-key font-semibold">Fixed</span>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              {THEME_PRESETS.map((p) => {
-                const active = preset === p.id;
-                const accent = isDarkActive ? p.swatchDark : p.swatchLight;
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => setThemePreset(p.id)}
-                    className={`flex items-center gap-2 rounded-[10px] p-2 border transition-all text-left ${
-                      active
-                        ? 'border-key bg-quaternary'
-                        : 'border-divider bg-quinary/60 hover:bg-quaternary'
-                    }`}
-                  >
-                    <span
-                      className="size-5 shrink-0 rounded-full border border-white/20 shadow-sm"
-                      style={{ backgroundColor: accent }}
-                    />
-                    <span className="min-w-0 flex-1 truncate type-callout text-primary">
-                      {p.name.split(' ')[0]}
-                    </span>
-                    {active && <Check size={12} className="text-key shrink-0" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Custom Hex Accent Color Picker */}
-          <div className="rounded-[14px] bg-quinary/80 p-3.5 border border-divider">
-            <div className="flex items-center justify-between mb-2.5">
-              <div className="flex items-center gap-1.5">
-                <Sparkles size={15} className="text-key" />
-                <span className="type-callout-medium text-primary">Custom Accent Color</span>
+            <div className="flex items-center gap-3 rounded-[12px] border border-key bg-quaternary p-3">
+              <span
+                className="size-8 shrink-0 rounded-[8px] border border-white/20 shadow-sm"
+                style={{
+                  background: `linear-gradient(135deg, ${activeModeMeta.swatches[0]} 48%, ${activeModeMeta.swatches[1]} 48%)`,
+                }}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="truncate type-callout-medium text-primary">
+                  {activeModeMeta.label} • {activeModeMeta.schemeName}
+                </div>
+                <div className="truncate type-caption-2 text-secondary">
+                  Locked signature palette for this UI style
+                </div>
               </div>
-              {preset === 'custom' && (
-                <span className="type-caption-2 text-key font-medium">Custom Active</span>
-              )}
-            </div>
-
-            {/* Quick Swatch Pills */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-2 [scrollbar-width:none]">
-              {QUICK_COLORS.map((color) => (
-                <button
-                  key={color}
-                  onClick={() => {
-                    setHexInput(color);
-                    setCustomAccent(color);
-                  }}
-                  className={`size-7 shrink-0 rounded-full border-2 transition-transform hover:scale-110 active:scale-95 ${
-                    preset === 'custom' && customAccent.toLowerCase() === color.toLowerCase()
-                      ? 'border-white scale-110 shadow-md'
-                      : 'border-transparent'
-                  }`}
-                  style={{ backgroundColor: color }}
-                  aria-label={color}
-                />
-              ))}
-            </div>
-
-            {/* Color picker input & Hex field */}
-            <div className="flex items-center gap-2.5 mt-1 pt-2 border-t border-divider">
-              <input
-                type="color"
-                value={customAccent}
-                onChange={(e) => {
-                  setHexInput(e.target.value);
-                  setCustomAccent(e.target.value);
-                }}
-                className="size-9 rounded-[8px] cursor-pointer bg-transparent border-0 p-0"
-              />
-              <input
-                type="text"
-                value={hexInput}
-                onChange={(e) => {
-                  setHexInput(e.target.value);
-                  if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
-                    setCustomAccent(e.target.value);
-                  }
-                }}
-                placeholder="#fa2d48"
-                className="w-28 rounded-[8px] bg-page px-3 py-1.5 font-mono type-callout text-primary border border-divider outline-none focus:border-key"
-              />
-              <button
-                onClick={() => {
-                  if (/^#[0-9a-fA-F]{3,6}$/.test(hexInput)) {
-                    setCustomAccent(hexInput);
-                  }
-                }}
-                className="rounded-[8px] bg-key px-3 py-1.5 type-callout-medium text-white hover:opacity-90 transition-opacity"
-              >
-                Apply
-              </button>
+              <Check size={14} className="text-key shrink-0" />
             </div>
           </div>
         </div>

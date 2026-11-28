@@ -22,7 +22,11 @@ export function UiRestartDialog() {
           ? 'Editorial Magazine'
           : pendingUiMode === 'bento'
             ? 'Bento Grids'
-            : 'Glassmorphism',
+            : pendingUiMode === 'retro'
+              ? 'Retro iPod'
+              : pendingUiMode === 'anime'
+                ? 'Anime Studio'
+                : 'Glassmorphism',
     description:
       pendingUiMode === 'secondary'
         ? 'Bold Ink & Dual-Tone'
@@ -30,7 +34,11 @@ export function UiRestartDialog() {
           ? 'Print Serif & Asymmetric Grid'
           : pendingUiMode === 'bento'
             ? 'Apple Modular Rounded Tiles'
-            : 'Apple Frosted Depth & Blur',
+            : pendingUiMode === 'retro'
+              ? 'Brushed Metal & Backlit LCD'
+              : pendingUiMode === 'anime'
+                ? 'Sakura Neon & Cel-Shaded Manga'
+                : 'Apple Frosted Depth & Blur',
   };
 
   return createPortal(

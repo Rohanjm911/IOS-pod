@@ -52,6 +52,10 @@ export function AudioVisualizer({
     let phase = 0;
 
     const render = () => {
+      if (document.hidden) {
+        animationFrameId = 0;
+        return;
+      }
       animationFrameId = requestAnimationFrame(render);
       if (width === 0 || height === 0) return;
 
@@ -201,9 +205,16 @@ export function AudioVisualizer({
       }
     };
 
+    const onVisibilityChange = () => {
+      if (!document.hidden && animationFrameId === 0) {
+        render();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
     render();
 
     return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       cancelAnimationFrame(animationFrameId);
       observer.disconnect();
     };

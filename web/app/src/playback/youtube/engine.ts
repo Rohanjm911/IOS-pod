@@ -3,7 +3,11 @@ import { buildSabrFormat } from 'googlevideo/utils';
 import shaka from 'shaka-player/dist/shaka-player.compiled';
 import { Constants, Utils, YT, type Innertube } from 'youtubei.js/web';
 import { resolveAddonStream, type AudioQualityTier, type ResolvedAddonStream } from '@/data/sources/addonClient';
-import { isExternalTrackId, resolveExternalAudioStream } from '@/data/sources/externalSources';
+import {
+  isExternalTrackId,
+  resolveExternalAudioStream,
+  resolveFullLengthYouTubeMatch,
+} from '@/data/sources/externalSources';
 import { useAddons } from '@/data/sources/addonsStore';
 import { getBridge } from '@/extension/bridge';
 import { getProxyUrl, proxiedUrl } from '@/lib/iosProxy';
@@ -222,13 +226,16 @@ export class YouTubeEngine {
         }
       }
 
-      // Built-in non-YouTube source (Audius full MP3 or iTunes) when explicitly selected or when YouTube proxy is bot-gated
+      // Built-in full-length external source (Audius MP3 >= 45s), upgrading iTunes chart IDs
+      // to full-length YouTube Music streams before ever falling back to 30s previews.
       if (isExternalTrackId(videoId) || (!getBridge() && isProxyBotGated() && hint?.title)) {
         try {
-          const external = await timed('external source', videoId, () => resolveExternalAudioStream(videoId, hint));
+          const fullExternal = await timed('external source', videoId, () =>
+            resolveExternalAudioStream(videoId, hint, { allowPreview: false }),
+          );
           this.checkCurrent(generation);
-          if (external) {
-            const track = await this.startAddonStream(videoId, external, startSec, autoplay, generation, quality);
+          if (fullExternal) {
+            const track = await this.startAddonStream(videoId, fullExternal, startSec, autoplay, generation, quality);
             trackLog.i(
               `playing via ${track.client}, ${track.format}, first audio after ${Math.round(performance.now() - started)}ms`,
               videoId,
@@ -238,6 +245,24 @@ export class YouTubeEngine {
         } catch (error) {
           if (error instanceof SupersededError) throw error;
           trackLog.w(`external source failed (${describe(error)}); falling back`, videoId);
+        }
+      }
+
+      if (videoId.startsWith('itunes:') && hint?.title) {
+        const ytMatchId = await timed('YouTube full match', videoId, () => resolveFullLengthYouTubeMatch(hint));
+        this.checkCurrent(generation);
+        if (ytMatchId) {
+          trackLog.i(`upgraded iTunes chart track to full YouTube Music track ${ytMatchId}`, videoId);
+          videoId = ytMatchId;
+        } else {
+          const preview = await timed('iTunes preview fallback', videoId, () =>
+            resolveExternalAudioStream(videoId, hint, { allowPreview: true }),
+          );
+          this.checkCurrent(generation);
+          if (preview) {
+            const track = await this.startAddonStream(videoId, preview, startSec, autoplay, generation, quality);
+            return track;
+          }
         }
       }
 
@@ -319,10 +344,12 @@ export class YouTubeEngine {
     } catch (error) {
       if (error instanceof SupersededError) throw error;
 
-      // Try built-in external audio sources (Audius full MP3) if not already tried
+      // Try built-in external audio sources (Audius full MP3) if not already tried — never 30s previews before IFrame
       if (!isExternalTrackId(videoId) && hint?.title && !(!getBridge() && isProxyBotGated())) {
         try {
-          const external = await timed('external source', videoId, () => resolveExternalAudioStream(videoId, hint));
+          const external = await timed('external source', videoId, () =>
+            resolveExternalAudioStream(videoId, hint, { allowPreview: false }),
+          );
           this.checkCurrent(generation);
           if (external) {
             const track = await this.startAddonStream(videoId, external, startSec, autoplay, generation, useAddons.getState().quality);

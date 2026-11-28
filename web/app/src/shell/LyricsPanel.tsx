@@ -1,6 +1,6 @@
 // Registers <am-lyrics>.
 import '@uimaxbai/am-lyrics/am-lyrics.js';
-import { Check, ChevronDown, Languages, Loader2, Minus, Settings2 } from 'lucide-react';
+import { Check, ChevronDown, Download, Languages, Loader2, Minus, Settings2, Speech } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useCanvas } from '@/data/spotify/canvas';
 import { getBridge } from '@/extension/bridge';
@@ -26,6 +26,11 @@ type AmLyricsElement = HTMLElement & {
   fontFamily?: string;
   noAutoAlternates?: boolean;
   showTranslation?: boolean;
+  showRomanization?: boolean;
+  downloadFormat?: string;
+  toggleRomanization?: () => void;
+  toggleTranslation?: () => void;
+  downloadLyrics?: () => void;
   requestUpdate?: () => void;
   updateComplete?: Promise<unknown>;
 };
@@ -46,11 +51,130 @@ function lyricFontForUi(uiMode: AppUiMode): string {
     case 'editorial':
       return "'Playfair Display', Georgia, 'Times New Roman', serif";
     case 'secondary':
-      return "'DM Sans', 'Arial Black', system-ui, sans-serif";
+      return "'Space Grotesk', 'DM Sans', 'Arial Black', system-ui, sans-serif";
     case 'bento':
       return "-apple-system, BlinkMacSystemFont, 'ISOpod SF Pro Display', 'DM Sans', system-ui, sans-serif";
+    case 'retro':
+      return "'Lucida Grande', 'Trebuchet MS', 'ISOpod SF Pro Display', system-ui, sans-serif";
+    case 'anime':
+      return "'M PLUS Rounded 1c', 'ISOpod SF Pro Display', 'DM Sans', system-ui, sans-serif";
     default:
       return LYRIC_FONT;
+  }
+}
+
+function lyricAnimationsForUi(uiMode: AppUiMode): string {
+  const reduced =
+    '@media (prefers-reduced-motion: reduce) { .lyrics-container, .lyrics-line, .lyrics-line.active, .lyrics-line.lyrics-activest { animation: none !important; transition: none !important; transform: none !important; } }';
+  const baseStage = `
+    @keyframes lp-stage-in {
+      from { opacity: 0; transform: translate3d(0, 8px, 0); }
+      to { opacity: 1; transform: translate3d(0, 0, 0); }
+    }
+    .lyrics-container {
+      scroll-behavior: smooth;
+      animation: lp-stage-in 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+  `;
+  switch (uiMode) {
+    case 'secondary':
+      return `
+        ${baseStage}
+        .lyrics-line {
+          transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease, border-color 220ms ease, background-color 220ms ease !important;
+          border-left: 4px solid transparent;
+          border-radius: 8px;
+          padding: 6px 12px;
+        }
+        .lyrics-line.active,
+        .lyrics-line.lyrics-activest {
+          transform: translate3d(8px, -2px, 0) scale(1.03);
+          border-left-color: #2563EB;
+          background-color: rgba(37, 99, 235, 0.1);
+          text-shadow: none !important;
+        }
+        ${reduced}
+      `;
+    case 'editorial':
+      return `
+        ${baseStage}
+        .lyrics-line {
+          transition: transform 460ms cubic-bezier(0.22, 1, 0.36, 1), opacity 380ms ease, border-color 340ms ease, letter-spacing 380ms ease !important;
+          border-left: 3px solid transparent;
+          padding: 5px 14px;
+        }
+        .lyrics-line.active,
+        .lyrics-line.lyrics-activest {
+          transform: translate3d(10px, 0, 0) scale(1.025);
+          border-left-color: #DC2626;
+          letter-spacing: -0.01em;
+          text-shadow: none !important;
+        }
+        ${reduced}
+      `;
+    case 'bento':
+      return `
+        ${baseStage}
+        .lyrics-line {
+          transition: transform 380ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease, background-color 320ms ease, box-shadow 320ms ease !important;
+          border-radius: 16px;
+          padding: 7px 14px;
+        }
+        .lyrics-line.active,
+        .lyrics-line.lyrics-activest {
+          transform: scale(1.03) translate3d(0, -2px, 0);
+          background-color: rgba(0, 102, 204, 0.12);
+          box-shadow: 0 4px 16px rgba(0, 102, 204, 0.12);
+          text-shadow: none !important;
+        }
+        ${reduced}
+      `;
+    case 'retro':
+      return `
+        ${baseStage}
+        .lyrics-line {
+          transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1), opacity 240ms ease, background 240ms ease, box-shadow 240ms ease !important;
+          border-radius: 10px;
+          padding: 6px 12px;
+        }
+        .lyrics-line.active,
+        .lyrics-line.lyrics-activest {
+          transform: scale(1.02) translate3d(3px, 0, 0);
+          background: linear-gradient(180deg, rgba(91, 176, 255, 0.28), rgba(20, 110, 245, 0.16));
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 2px 8px rgba(20, 110, 245, 0.15);
+          text-shadow: none !important;
+        }
+        ${reduced}
+      `;
+    case 'anime':
+      return `
+        ${baseStage}
+        .lyrics-line {
+          transition: transform 400ms cubic-bezier(0.16, 1, 0.3, 1), opacity 340ms ease, text-shadow 340ms ease, border-color 320ms ease !important;
+          border-left: 3px solid transparent;
+          padding: 5px 12px;
+        }
+        .lyrics-line.active,
+        .lyrics-line.lyrics-activest {
+          transform: translate3d(10px, -2px, 0) scale(1.045);
+          border-left-color: #FF3E8A;
+          text-shadow: 0 0 20px rgba(255, 62, 138, 0.7), 0 0 42px rgba(0, 210, 255, 0.4) !important;
+        }
+        ${reduced}
+      `;
+    default:
+      return `
+        ${baseStage}
+        .lyrics-line {
+          transition: transform 460ms cubic-bezier(0.16, 1, 0.3, 1), opacity 400ms ease, text-shadow 400ms ease !important;
+        }
+        .lyrics-line.active,
+        .lyrics-line.lyrics-activest {
+          transform: scale(1.038) translate3d(0, 0, 0);
+          text-shadow: 0 0 24px rgba(255, 255, 255, 0.55), 0 0 48px rgba(250, 36, 60, 0.22) !important;
+        }
+        ${reduced}
+      `;
   }
 }
 
@@ -66,7 +190,7 @@ function readLyricColors(uiMode: AppUiMode): { highlight: string; base: string; 
   const muted = styles.getPropertyValue('--systemSecondary').trim() || 'rgba(255,255,255,0.55)';
   const accent = styles.getPropertyValue('--keyColor').trim() || ink;
   return {
-    highlight: uiMode === 'editorial' || uiMode === 'bento' ? accent : ink,
+    highlight: uiMode === 'editorial' || uiMode === 'bento' || uiMode === 'retro' || uiMode === 'anime' ? accent : ink,
     base: ink,
     muted,
   };
@@ -111,6 +235,13 @@ function useLyricFont(): boolean {
 const FAR_LINES =
   '.lyrics-line:not(.active):not(.pre-active):not(.lyrics-activest):not(.post-active-line):not(.next-active-line)' +
   ':not(.prev-2):not(.prev-3):not(.next-2):not(.next-3):not(.lyrics-gap) { opacity: 0.46; }';
+
+const HIDE_HEADER = `
+  /* Made by Rohan JM aka TheRedDragon */
+  .lyrics-header {
+    display: none !important;
+  }
+`;
 
 /**
  * Apple Music-inspired fluid line transitions: active line gently scales with
@@ -222,6 +353,7 @@ const FULL_SIZE =
 function LyricsView({ ttml, full }: { ttml: string; full: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const element = useRef<AmLyricsElement | null>(null);
+  const themeSheetRef = useRef<CSSStyleSheet | null>(null);
   const deck = usePlayer((s) => s.deck);
   const mixing = usePlayer((s) => s.mixing);
   const videoId = usePlayer((s) => s.nowPlaying?.videoId);
@@ -280,18 +412,11 @@ function LyricsView({ ttml, full }: { ttml: string; full: boolean }) {
       const root = el.shadowRoot;
       if (!root) return;
       const sheet = new CSSStyleSheet();
-      sheet.replaceSync(HIDE_FOOTER + FAR_LINES + FULL_SIZE + LYRIC_ANIMATIONS);
-      root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
-      // The full-screen column fades its top edge, but am-lyrics' toolbar
-      // (romanize, translate, download) sits at the top of the same scroller
-      // until the lines push it away. The fade grows with the scroll instead,
-      // so the toolbar is never under it.
-      const scroller = root.querySelector('.lyrics-container');
-      const target = host.current;
-      if (!full || !scroller || !target) return;
-      const fade = () => target.style.setProperty('--lyrics-top-fade', `${Math.min(scroller.scrollTop, 80)}px`);
-      fade();
-      scroller.addEventListener('scroll', fade, { passive: true, signal: unmounted.signal });
+      sheet.replaceSync(HIDE_FOOTER + HIDE_HEADER + FAR_LINES + FULL_SIZE + LYRIC_ANIMATIONS);
+      const themeSheet = new CSSStyleSheet();
+      themeSheet.replaceSync(lyricAnimationsForUi(uiMode));
+      themeSheetRef.current = themeSheet;
+      root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet, themeSheet];
     });
     return () => {
       unmounted.abort();
@@ -313,6 +438,7 @@ function LyricsView({ ttml, full }: { ttml: string; full: boolean }) {
     el.style.setProperty('--am-lyrics-highlight-color', colors.highlight);
     el.style.setProperty('--lyplus-text-primary', colors.base);
     el.style.setProperty('--lyplus-text-secondary', colors.muted);
+    themeSheetRef.current?.replaceSync(lyricAnimationsForUi(uiMode));
   }, [uiMode, brutalPalette, customBrutalPrimary, customBrutalSecondary, scheme, preset, amoled]);
 
   useEffect(() => {
@@ -389,16 +515,99 @@ function LyricsView({ ttml, full }: { ttml: string; full: boolean }) {
     };
   }, [deck, videoId, ttml, mixing, syncOffsetMs]);
 
-  // am-lyrics renders and scrolls itself; it only needs the space. Full screen fades it out at the top and bottom.
+  const setAutoTranslate = useLyricsSettings((s) => s.setAutoTranslate);
+  const setTranslateLang = useLyricsSettings((s) => s.setTranslateLang);
+  const [romanizedOn, setRomanizedOn] = useState(false);
+  const [downloadFmt, setDownloadFmt] = useState('auto');
+
+  // Fixed non-overlapping toolbar sits above the masked lyrics scroller so lines never collide with controls.
   return (
-    <div
-      ref={host}
-      className={
-        full
-          ? 'flex min-h-0 flex-1 animate-[fade-in_360ms_ease-out] [mask-image:linear-gradient(180deg,transparent,#000_var(--lyrics-top-fade,0px),#000_50%,transparent)]'
-          : 'flex min-h-0 flex-1 animate-[fade-in_360ms_ease-out]'
-      }
-    />
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div
+        className={`flex shrink-0 items-center justify-between gap-2 pb-2 ${
+          full ? 'px-1' : 'px-4 pt-1'
+        }`}
+      >
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            title="Toggle Romanization"
+            aria-label="Toggle romanization"
+            aria-pressed={romanizedOn}
+            onClick={() => {
+              const el = element.current;
+              if (!el?.toggleRomanization) return;
+              el.toggleRomanization();
+              setRomanizedOn(Boolean(el.showRomanization));
+            }}
+            className={`grid size-8 place-items-center rounded-[8px] transition-colors cursor-pointer ${
+              romanizedOn ? 'bg-key-bg text-white' : 'text-secondary hover:bg-quinary hover:text-primary'
+            }`}
+          >
+            <Speech size={16} aria-hidden />
+          </button>
+          <button
+            type="button"
+            title={autoTranslate ? `Translation on (${translateLang === 'hinglish' ? 'Hinglish' : 'English'})` : 'Turn on lyrics translation'}
+            aria-label="Toggle translation"
+            aria-pressed={autoTranslate}
+            onClick={() => setAutoTranslate(!autoTranslate)}
+            className={`inline-flex h-8 items-center gap-1 rounded-[8px] px-2 transition-colors cursor-pointer ${
+              autoTranslate ? 'bg-key-bg text-white' : 'text-secondary hover:bg-quinary hover:text-primary'
+            }`}
+          >
+            <Languages size={16} aria-hidden />
+            <span className="text-[11px] font-semibold">
+              {translateLang === 'hinglish' ? 'Hinglish' : 'EN'}
+            </span>
+          </button>
+          {autoTranslate && (
+            <select
+              aria-label="Translation language"
+              value={translateLang}
+              onChange={(e) => setTranslateLang(e.target.value)}
+              className="h-8 rounded-[8px] border border-white/15 bg-quinary/70 px-2 text-[11px] font-medium text-primary outline-none hover:bg-quinary cursor-pointer"
+            >
+              <option value="en">English</option>
+              <option value="hinglish">Hinglish</option>
+            </select>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <select
+            aria-label="Lyrics download format"
+            value={downloadFmt}
+            onChange={(e) => {
+              setDownloadFmt(e.target.value);
+              if (element.current) element.current.downloadFormat = e.target.value;
+            }}
+            className="h-8 rounded-[8px] border border-white/15 bg-quinary/70 px-2.5 type-callout text-primary outline-none hover:bg-quinary cursor-pointer"
+          >
+            <option value="auto">Auto</option>
+            <option value="lrc">LRC</option>
+            <option value="ttml">TTML</option>
+            <option value="plain">Plain</option>
+          </select>
+          <button
+            type="button"
+            title="Download Lyrics"
+            aria-label="Download lyrics"
+            onClick={() => element.current?.downloadLyrics?.()}
+            className="grid size-8 place-items-center rounded-[8px] text-secondary hover:bg-quinary hover:text-primary transition-colors cursor-pointer"
+          >
+            <Download size={16} aria-hidden />
+          </button>
+        </div>
+      </div>
+      <div
+        ref={host}
+        className={
+          full
+            ? 'flex min-h-0 flex-1 animate-[fade-in_360ms_ease-out] [mask-image:linear-gradient(180deg,transparent_0px,#000_28px,#000_55%,transparent)]'
+            : 'flex min-h-0 flex-1 animate-[fade-in_360ms_ease-out] [mask-image:linear-gradient(180deg,transparent_0px,#000_20px,#000_92%,transparent)]'
+        }
+      />
+    </div>
   );
 }
 

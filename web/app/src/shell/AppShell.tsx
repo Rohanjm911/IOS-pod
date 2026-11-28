@@ -1,5 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { Outlet } from 'react-router';
+import { DacDetectedToast } from '@/components/DacDetectedToast';
+import { SlowNetworkToast } from '@/components/SlowNetworkToast';
 import { PrefetchLink } from '@/components/PrefetchLink';
 import { StartupScreen } from '@/components/StartupScreen';
 import { useExtension } from '@/extension/useExtension';
@@ -10,6 +12,8 @@ import { startPartySync } from '@/party/partySync';
 import { useDiscordPresence } from '@/playback/discordPresence';
 import { startHistoryReporting } from '@/playback/historyReporting';
 import { startLivePresence } from '@/playback/livePresence';
+import { initDacAutoDetection } from '@/state/dacAudio';
+import { initSlowNetworkMonitor } from '@/state/slowNetwork';
 import { useUi } from '@/state/ui';
 import { Banner, bannerButtonClass } from './Banner';
 import { MiniPlayer } from './MiniPlayer';
@@ -47,6 +51,10 @@ export function AppShell() {
   useEffect(() => startHistoryReporting(), []);
   // Counts this tab in the "listening now" figure beside the phone and PC apps.
   useEffect(() => startLivePresence(), []);
+  // Auto-detects USB DACs across phones, tablets, and computers as soon as connected.
+  useEffect(() => initDacAutoDetection(), []);
+  // Shows a random network-joke popup when connection is slow or buffering stalls.
+  useEffect(() => initSlowNetworkMonitor(), []);
   const extension = useExtension();
   const proxyUrl = useProxyUrl();
   const proxyChecking = useProxyChecking();
@@ -113,6 +121,8 @@ export function AppShell() {
         <MobileTabBar />
         <SidePanel />
         <MiniPlayer />
+        <DacDetectedToast />
+        <SlowNetworkToast />
       </div>
       {banner}
       {sleepTimerOpen && (

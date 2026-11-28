@@ -1,5 +1,5 @@
-import { ArrowDown, ArrowUp, Check, ChevronRight, Globe, Layers, Monitor, Moon, Palette, Sun, Trash2, Users } from 'lucide-react';
-import { lazy, Suspense, useState, type ComponentType, type ReactNode } from 'react';
+import { ArrowDown, ArrowUp, Bluetooth, Check, ChevronRight, Globe, Headphones, Layers, Monitor, Moon, Palette, RefreshCw, Sun, Trash2, Users } from 'lucide-react';
+import { lazy, Suspense, useEffect, useState, type ComponentType, type ReactNode } from 'react';
 import { MdOutlineExtension } from 'react-icons/md';
 import { SiApplemusic, SiDiscord, SiSpotify, SiYoutubemusic } from 'react-icons/si';
 import { PageHeader } from '@/components/PageHeader';
@@ -16,7 +16,9 @@ import { useParty } from '@/party/useParty';
 import { useHistorySettings } from '@/playback/historyReporting';
 import { Select } from '@/components/Select';
 import { AUTOMIX_BARS } from '@/playback/automix/choices';
-import { CROSSFADE_CHOICES, usePlayer } from '@/state/player';
+import { CROSSFADE_CHOICES, syncDacVolume, usePlayer } from '@/state/player';
+import { useDacAudio, type DacSampleRate } from '@/state/dacAudio';
+import { syncEqualizerForDacMode } from '@/state/equalizer';
 import { APP_UI_MODES, BRUTAL_PALETTES, PLAYER_STYLES, useUi } from '@/state/ui';
 import { setAudioOnly, useVideo } from '@/state/video';
 import { AppleMusicIntegration, AppleMusicToggles, CanvasToggle, DiscordIntegration, LyricSourcesAccess, SpotifyIntegration, Toggle } from './IntegrationSettings';
@@ -263,6 +265,261 @@ function AudioSourcesSettings() {
   );
 }
 
+function DacOutputSettings() {
+  const {
+    sinkId,
+    dacDirectMode,
+    lockUnityVolume,
+    autoSwitchToDac,
+    bluetoothControlsEnabled,
+    preferredSampleRate,
+    devices,
+    activeSampleRateHz,
+    activeDeviceLabel,
+    usbHardwareLabel,
+    bluetoothHardwareLabel,
+    sinkSupported,
+    osPickerSupported,
+    webUsbSupported,
+    webBluetoothSupported,
+    labelsRedacted,
+    routingStatus,
+    routingError,
+    setOutputDevice,
+    selectViaOsPicker,
+    pairUsbDac,
+    pairBluetoothDevice,
+    setDacDirectMode,
+    setLockUnityVolume,
+    setAutoSwitchToDac,
+    setBluetoothControlsEnabled,
+    setPreferredSampleRate,
+    refreshDevices,
+  } = useDacAudio();
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    void refreshDevices(false);
+  }, [refreshDevices]);
+
+  const detectedDac = devices.find((d) => d.isLikelyDac);
+  const detectedBt = devices.find((d) => d.isLikelyBluetooth);
+  const connectedBtList = devices.filter((d) => d.isLikelyBluetooth && d.deviceId !== 'communications');
+  const defaultOutput = devices.find((d) => d.deviceId === 'default');
+  const deviceOptions = [
+    {
+      value: 'default',
+      label: defaultOutput?.label && defaultOutput.label !== 'System Default'
+        ? defaultOutput.label
+        : 'System Default Output',
+    },
+    ...devices
+      .filter((d) => d.deviceId !== 'default' && d.deviceId !== 'communications')
+      .map((d) => ({
+        value: d.deviceId,
+        label: d.isLikelyDac ? `${d.label} (DAC)` : d.isLikelyBluetooth ? `${d.label} (Bluetooth)` : d.label,
+      })),
+  ];
+
+  const rateMismatch =
+    preferredSampleRate !== 'native' &&
+    activeSampleRateHz !== null &&
+    activeSampleRateHz !== preferredSampleRate;
+
+  return (
+    <>
+      <h2 className={settingsUi.sectionHeader}>USB DAC, Bluetooth &amp; Hi-Res Output</h2>
+      <section className={settingsUi.group}>
+        <div className={settingsUi.integration}>
+          <Glyph
+            Icon={detectedBt && !detectedDac ? Bluetooth : Headphones}
+            color={detectedDac || dacDirectMode || routingStatus === 'routed' ? '#30d158' : '#0a84ff'}
+          />
+          <div className="min-w-0 flex-1">
+            <div className="truncate type-body text-primary">
+              {detectedDac
+                ? `DAC Detected: ${detectedDac.label}`
+                : detectedBt
+                  ? `Bluetooth Connected: ${detectedBt.label}`
+                  : usbHardwareLabel
+                    ? `USB DAC Detected: ${usbHardwareLabel}`
+                    : bluetoothHardwareLabel
+                      ? `Bluetooth: ${bluetoothHardwareLabel}`
+                      : activeDeviceLabel}
+            </div>
+            <div className="truncate type-callout text-secondary">
+              {activeSampleRateHz ? `${+(activeSampleRateHz / 1000).toFixed(1)} kHz engine` : 'Ready'}
+              {dacDirectMode ? ' · Bit-Transparent Direct' : ' · Standard DSP'}
+              {bluetoothControlsEnabled ? ' · BT Controls On' : ''}
+              {routingStatus === 'routed' ? ' · Routed' : !sinkSupported ? ' · OS Auto-Routed (Mobile/Safari)' : ''}
+            </div>
+            {routingError && <div className="truncate type-callout text-key">{routingError}</div>}
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+            {webBluetoothSupported && (
+              <button
+                type="button"
+                className={settingsUi.inlineButton}
+                onClick={() => void pairBluetoothDevice()}
+              >
+                Pair Bluetooth
+              </button>
+            )}
+            {webUsbSupported && !detectedDac && (
+              <button
+                type="button"
+                className={settingsUi.inlineButton}
+                onClick={() => void pairUsbDac()}
+              >
+                Pair USB DAC
+              </button>
+            )}
+            {osPickerSupported && (
+              <button
+                type="button"
+                className={settingsUi.inlineButton}
+                onClick={() => void selectViaOsPicker()}
+              >
+                OS Picker
+              </button>
+            )}
+            <button
+              type="button"
+              className={settingsUi.inlineButton}
+              disabled={refreshing}
+              onClick={async () => {
+                setRefreshing(true);
+                await refreshDevices(true);
+                setRefreshing(false);
+              }}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+                {refreshing ? 'Scanning…' : 'Scan Devices'}
+              </span>
+            </button>
+          </div>
+        </div>
+        {(connectedBtList.length > 0 || bluetoothHardwareLabel) && (
+          <div className="relative flex flex-wrap items-center gap-2 px-4 py-2.5 hairline-[16px]">
+            <span className="inline-flex items-center gap-1.5 type-callout text-secondary">
+              <Bluetooth size={14} className="text-[#0a84ff]" />
+              Connected Bluetooth:
+            </span>
+            {connectedBtList.map((bt) => (
+              <button
+                key={bt.deviceId}
+                type="button"
+                onClick={() => void setOutputDevice(bt.deviceId)}
+                className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors cursor-pointer ${
+                  sinkId === bt.deviceId
+                    ? 'bg-[#0a84ff] text-white'
+                    : 'bg-quaternary text-primary hover:bg-quinary'
+                }`}
+              >
+                {bt.label}
+              </button>
+            ))}
+            {connectedBtList.length === 0 && bluetoothHardwareLabel && (
+              <span className="rounded-full bg-[#0a84ff]/15 px-2.5 py-0.5 text-[11px] font-medium text-[#0a84ff]">
+                {bluetoothHardwareLabel}
+              </span>
+            )}
+          </div>
+        )}
+        {labelsRedacted && (
+          <p className="px-4 py-2 type-callout text-secondary hairline-[16px]">
+            Browser hid USB device names. Tap <strong>Scan DACs</strong>{osPickerSupported ? ' or OS Picker' : ''} to reveal your DAC model.
+          </p>
+        )}
+        {sinkSupported && (
+          <label className={settingsUi.controlRow}>
+            <span>Output Device</span>
+            <Select<string>
+              label="Output Device"
+              value={deviceOptions.some((o) => o.value === sinkId) ? sinkId : 'default'}
+              options={deviceOptions}
+              onChange={(val) => void setOutputDevice(val)}
+            />
+          </label>
+        )}
+        <label className={settingsUi.controlRow}>
+          <span>Target Sample Rate</span>
+          <div className="flex items-center gap-2">
+            {rateMismatch && (
+              <button
+                type="button"
+                className={settingsUi.inlineButton}
+                onClick={() => window.location.reload()}
+              >
+                Apply Now
+              </button>
+            )}
+            <Select<string>
+              label="Target Sample Rate"
+              value={String(preferredSampleRate)}
+              options={[
+                { value: 'native', label: 'Native / Auto' },
+                { value: '44100', label: '44.1 kHz (CD)' },
+                { value: '48000', label: '48 kHz' },
+                { value: '88200', label: '88.2 kHz (Hi-Res)' },
+                { value: '96000', label: '96 kHz (Hi-Res)' },
+                { value: '176400', label: '176.4 kHz (Studio)' },
+                { value: '192000', label: '192 kHz (Studio DAC)' },
+              ]}
+              onChange={(val) => {
+                const next: DacSampleRate =
+                  val === 'native' ? 'native' : (Number(val) as Exclude<DacSampleRate, 'native'>);
+                setPreferredSampleRate(next);
+              }}
+            />
+          </div>
+        </label>
+        {sinkSupported && (
+          <Toggle
+            label="Auto-Switch When USB DAC Plugged In"
+            detail="Automatically route playback to a detected external USB DAC when connected."
+            checked={autoSwitchToDac}
+            onChange={setAutoSwitchToDac}
+          />
+        )}
+        <Toggle
+          label="Bluetooth Hardware Controls (AVRCP)"
+          detail="Use Play/Pause, Next, Previous, Stop, and Seek buttons on Bluetooth headphones & speakers."
+          checked={bluetoothControlsEnabled}
+          onChange={setBluetoothControlsEnabled}
+        />
+        <Toggle
+          label="DAC Direct Mode (Bypass EQ & DSP)"
+          detail="Disables equalizer & bass boost coloration for clean, uncolored DAC playback."
+          checked={dacDirectMode}
+          onChange={(on) => {
+            setDacDirectMode(on);
+            syncEqualizerForDacMode();
+            syncDacVolume();
+          }}
+        />
+        {dacDirectMode && (
+          <Toggle
+            label="Unity Hardware Volume Lock (0 dB)"
+            detail="Keeps browser digital gain at 100% so you control volume directly on your DAC knob."
+            checked={lockUnityVolume}
+            onChange={(on) => {
+              setLockUnityVolume(on);
+              syncDacVolume();
+            }}
+          />
+        )}
+      </section>
+      <p className={settingsUi.footer}>
+        {sinkSupported
+          ? 'Supports USB-C dongles, desktop DACs, and studio audio interfaces via Web Audio setSinkId & OS Output Picker.'
+          : 'Your browser uses the OS default audio output device. Select your USB DAC in system sound settings to play through it.'}
+      </p>
+    </>
+  );
+}
+
 /** Appearance mode (System/Light/Dark), AMOLED black, Glassmorphism, and live colour-scheme presets. */
 function AppearanceThemeSettings() {
   const {
@@ -301,21 +558,59 @@ function AppearanceThemeSettings() {
     { id: 'none', label: 'Solid / Flat (0px)' },
   ] as const;
 
+  const activeModeMeta = APP_UI_MODES.find((m) => m.id === uiMode) ?? APP_UI_MODES[0]!;
+  const windowShellStyle =
+    uiMode === 'editorial'
+      ? 'rounded-[4px] border-2 border-primary/80'
+      : uiMode === 'bento'
+        ? 'rounded-[24px]'
+        : uiMode === 'retro'
+          ? 'rounded-[14px]'
+          : uiMode === 'anime'
+            ? 'rounded-[20px]'
+            : uiMode === 'secondary'
+              ? 'rounded-[8px]'
+              : 'rounded-[18px] backdrop-blur-xl';
+
   return (
     <>
       <h2 className={settingsUi.sectionHeader}>App UI Look</h2>
-      <section className={settingsUi.group}>
+      <section className={`${settingsUi.group} ${windowShellStyle} transition-all`}>
         <div className="relative flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
           <div className="flex flex-col">
-            <span className="type-title-3 text-primary">
-              Active Interface: {APP_UI_MODES.find((m) => m.id === uiMode)?.label ?? 'Glassmorphism'}
+            {uiMode === 'editorial' && (
+              <span className="mb-0.5 text-[10px] font-bold tracking-[0.18em] text-[#DC2626] uppercase">
+                Active Interface
+              </span>
+            )}
+            <span
+              className="type-title-3 text-primary"
+              style={
+                uiMode === 'editorial'
+                  ? { fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 900 }
+                  : uiMode === 'anime'
+                    ? { fontFamily: "'M PLUS Rounded 1c', 'DM Sans', sans-serif", fontWeight: 800 }
+                    : undefined
+              }
+            >
+              {uiMode === 'editorial' ? activeModeMeta.label : `Active Interface: ${activeModeMeta.label}`}
             </span>
             <span className="type-callout text-secondary">
               Switch the entire app UI look (asks confirmation &amp; restarts app).
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex flex-wrap gap-1 rounded-[10px] bg-quaternary p-1">
+            <div
+              className={`flex flex-wrap gap-1 p-1 ${
+                uiMode === 'editorial'
+                  ? 'rounded-[4px] border border-divider bg-quinary'
+                  : uiMode === 'bento'
+                    ? 'rounded-[14px] bg-quaternary'
+                    : uiMode === 'retro'
+                      ? 'rounded-[10px] border border-divider bg-quaternary shadow-inner'
+                      : 'rounded-[10px] bg-quaternary'
+              }`}
+            >
               {APP_UI_MODES.map((opt) => {
                 const active = uiMode === opt.id;
                 return (
@@ -323,9 +618,11 @@ function AppearanceThemeSettings() {
                     key={opt.id}
                     type="button"
                     onClick={() => requestUiModeSwitch(opt.id)}
+                    style={active ? { background: activeModeMeta.accentBg } : undefined}
                     className={[
-                      'inline-flex h-8 cursor-pointer items-center rounded-[7px] px-2.5 type-callout transition-colors',
-                      active ? 'bg-key-bg font-semibold text-white shadow-sm' : 'text-secondary hover:text-primary',
+                      'inline-flex h-8 cursor-pointer items-center px-2.5 type-callout transition-all',
+                      uiMode === 'editorial' ? 'rounded-[2px]' : uiMode === 'bento' ? 'rounded-[10px]' : 'rounded-[7px]',
+                      active ? 'font-semibold text-white shadow-sm' : 'text-secondary hover:text-primary',
                     ].join(' ')}
                   >
                     {opt.label}
@@ -340,66 +637,31 @@ function AppearanceThemeSettings() {
                 const next = APP_UI_MODES[(idx + 1) % APP_UI_MODES.length]?.id ?? 'primary';
                 requestUiModeSwitch(next);
               }}
-              className="inline-flex h-9 cursor-pointer items-center rounded-[9px] bg-key-bg px-3.5 type-callout-medium text-white shadow-sm hover:opacity-90 transition-opacity"
+              style={{ background: activeModeMeta.accentBg }}
+              className={`inline-flex h-9 cursor-pointer items-center px-3.5 type-callout-medium text-white shadow-sm hover:opacity-90 transition-opacity ${
+                uiMode === 'editorial' ? 'rounded-[4px]' : uiMode === 'bento' ? 'rounded-[12px]' : 'rounded-[9px]'
+              }`}
             >
               Switch UI Style
             </button>
           </div>
         </div>
 
-        {/* Neo-Brutalism Dual-Tone Color Scheme Picker */}
-        <div className="relative flex flex-col gap-3 px-4 py-3.5 hairline-[16px]">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-col">
-              <span className="type-title-3 text-primary">Neo-Brutalism — Dual-Tone Colors</span>
-              <span className="type-callout text-secondary">
-                Choose a dual-tone Neo-Brutalism palette or customize Tone 1 &amp; Tone 2 colors.
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1.5 rounded-[8px] bg-quaternary px-2 py-1 type-caption-2 text-primary cursor-pointer">
-                <span>Tone 1</span>
-                <input
-                  type="color"
-                  value={customBrutalPrimary}
-                  onChange={(e) => setCustomBrutalColors(e.target.value, customBrutalSecondary)}
-                  className="size-5 cursor-pointer rounded border-0 bg-transparent p-0"
-                />
-              </label>
-              <label className="flex items-center gap-1.5 rounded-[8px] bg-quaternary px-2 py-1 type-caption-2 text-primary cursor-pointer">
-                <span>Tone 2</span>
-                <input
-                  type="color"
-                  value={customBrutalSecondary}
-                  onChange={(e) => setCustomBrutalColors(customBrutalPrimary, e.target.value)}
-                  className="size-5 cursor-pointer rounded border-0 bg-transparent p-0"
-                />
-              </label>
-            </div>
+        {/* Fixed Theme Colour Scheme Summary */}
+        <div className="relative flex flex-wrap items-center justify-between gap-2 px-4 py-3 hairline-[16px]">
+          <div className="flex flex-col">
+            <span className="type-callout-medium text-primary">Theme Colour Scheme</span>
+            <span className="type-caption-1 text-secondary">{activeModeMeta.schemeName}</span>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
-            {BRUTAL_PALETTES.map((p) => {
-              const active = brutalPalette === p.id;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setBrutalPalette(p.id)}
-                  className={`flex items-center gap-2 rounded-[10px] border px-2.5 py-2 text-left transition ${
-                    active ? 'border-key bg-quaternary font-semibold' : 'border-divider bg-quinary/60 hover:bg-quaternary'
-                  }`}
-                >
-                  <span
-                    className="grid size-6 shrink-0 grid-cols-2 overflow-hidden rounded-[6px] border"
-                    style={{ borderColor: p.ink }}
-                  >
-                    <span style={{ backgroundColor: p.accent }} />
-                    <span style={{ backgroundColor: p.accent2 }} />
-                  </span>
-                  <span className="truncate type-callout text-primary">{p.label}</span>
-                </button>
-              );
-            })}
+          <div className="flex items-center gap-1.5" aria-label={`${activeModeMeta.label} colour palette`}>
+            {activeModeMeta.swatches.map((hex) => (
+              <span
+                key={hex}
+                title={hex}
+                className="size-5 rounded-full border border-white/20 shadow-xs"
+                style={{ backgroundColor: hex }}
+              />
+            ))}
           </div>
         </div>
       </section>
@@ -510,65 +772,33 @@ function AppearanceThemeSettings() {
           </div>
         </div>
 
-        {/* Custom Accent Color Field */}
-        <div className="relative flex flex-wrap items-center justify-between gap-3 px-4 py-3 hairline-[16px]">
-          <div className="flex flex-col">
-            <span className="type-title-3 text-primary">Custom Accent Color</span>
-            <span className="type-callout text-secondary">Pick any custom hex tint for key buttons and highlights.</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="color"
-              value={customAccent}
-              onChange={(e) => setCustomAccent(e.target.value)}
-              className="size-8 rounded-[6px] cursor-pointer bg-transparent border-0 p-0"
-              title="Pick Accent Color"
-            />
-            <span className="font-mono type-callout text-secondary">{customAccent}</span>
-            {preset === 'custom' && (
-              <span className="rounded-[6px] bg-key-bg px-2 py-0.5 type-caption-2 font-semibold text-white">
-                Active
-              </span>
-            )}
-          </div>
-        </div>
-
+        {/* Fixed Signature Color Scheme */}
         <div className="relative p-4 hairline-[16px]">
-          <p className="mb-3 type-callout text-secondary">iOS Color Scheme Presets</p>
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3" role="group" aria-label="Colour scheme presets">
-            {THEME_PRESETS.map((p) => {
-              const active = preset === p.id;
-              const accent = isDarkActive ? p.swatchDark : p.swatchLight;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => setThemePreset(p.id)}
-                  className={[
-                    'flex cursor-pointer items-center gap-3 rounded-[10px] border px-3 py-2.5 text-left transition-colors',
-                    active
-                      ? 'border-key bg-quaternary font-medium text-primary'
-                      : 'border-label-divider bg-quinary text-primary hover:bg-quaternary',
-                  ].join(' ')}
-                >
-                  <span
-                    className="relative flex size-9 shrink-0 items-center justify-center rounded-[8px] border border-white/15 shadow-inner"
-                    style={{ background: `linear-gradient(135deg, ${p.surfaceDark} 48%, ${accent} 48%)` }}
-                    aria-hidden
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate type-body-emphasized text-primary">{p.name}</span>
-                    <span className="block truncate type-callout text-secondary">{p.subtitle}</span>
-                  </span>
-                  {active && (
-                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-key-bg text-white" aria-hidden>
-                      <Check size={12} strokeWidth={3} />
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <p className="type-callout text-secondary">Signature Color Scheme</p>
+            <span className="rounded-[6px] bg-key-bg/15 px-2 py-0.5 text-[11px] font-semibold text-key">
+              Fixed
+            </span>
+          </div>
+          <div className="flex items-center gap-3 rounded-[10px] border border-key bg-quaternary px-3.5 py-3">
+            <span
+              className="relative flex size-9 shrink-0 items-center justify-center rounded-[8px] border border-white/15 shadow-inner"
+              style={{
+                background: `linear-gradient(135deg, ${activeModeMeta.swatches[0]} 48%, ${activeModeMeta.swatches[1]} 48%)`,
+              }}
+              aria-hidden
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate type-body-emphasized text-primary">
+                {activeModeMeta.label} • {activeModeMeta.schemeName}
+              </span>
+              <span className="block truncate type-callout text-secondary">
+                Fixed signature palette locked for {activeModeMeta.label} UI.
+              </span>
+            </span>
+            <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-key-bg text-white" aria-hidden>
+              <Check size={12} strokeWidth={3} />
+            </span>
           </div>
         </div>
       </section>
@@ -616,6 +846,7 @@ export default function SettingsPage() {
         <AppearanceThemeSettings />
         <IosProxySettings />
         <AudioSourcesSettings />
+        <DacOutputSettings />
         <h2 className={settingsUi.sectionHeader}>Account & Integrations</h2>
         <section className={settingsUi.group}>
           <div className={settingsUi.integration}>

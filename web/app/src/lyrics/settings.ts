@@ -40,8 +40,7 @@ type Saved = Pick<
 
 const DEFAULTS: Saved = {
   order: LYRICS_SOURCES.map((s) => s.id),
-  // The keyed routes do nothing without a key; off until one is entered.
-  disabled: ['paxsenix-spotify', 'paxsenix-musixmatch'],
+  disabled: [],
   preferSyllables: false,
   syncedOnly: true,
   autoTranslate: true,
@@ -50,10 +49,25 @@ const DEFAULTS: Saved = {
   syncOffsetMs: 220,
 };
 
+const KEYLESS_MIGRATION_KEY = 'isopod:lyrics-keyless-v1';
+
 function load(): Saved {
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) ?? '{}') as Partial<Saved>;
-    return { ...DEFAULTS, ...saved, order: orderedSources(saved.order ?? DEFAULTS.order) };
+    const rawLang = saved.translateLang;
+    const translateLang = rawLang === 'hinglish' || rawLang === 'hi' ? 'hinglish' : 'en';
+    let disabled = saved.disabled ?? DEFAULTS.disabled;
+    if (!localStorage.getItem(KEYLESS_MIGRATION_KEY)) {
+      localStorage.setItem(KEYLESS_MIGRATION_KEY, '1');
+      disabled = disabled.filter((id) => id !== 'paxsenix-spotify' && id !== 'paxsenix-musixmatch');
+    }
+    return {
+      ...DEFAULTS,
+      ...saved,
+      disabled,
+      translateLang,
+      order: orderedSources(saved.order ?? DEFAULTS.order),
+    };
   } catch {
     return DEFAULTS;
   }

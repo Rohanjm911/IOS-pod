@@ -387,8 +387,9 @@ export function EqualizerModal({ open, onClose }: EqualizerModalProps) {
 
                   {/* Vertical Slider Track */}
                   <div className="relative flex h-32 w-full items-center justify-center">
+                    <div className="pointer-events-none absolute inset-y-2 left-1/2 w-1.5 -translate-x-1/2 rounded-full bg-quaternary" />
                     {/* Zero center reference dot */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-1 rounded-full bg-secondary/35 pointer-events-none" />
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-1.5 rounded-full bg-secondary/45 pointer-events-none" />
 
                     <input
                       type="range"
@@ -396,8 +397,11 @@ export function EqualizerModal({ open, onClose }: EqualizerModalProps) {
                       max="12"
                       step="0.5"
                       value={gain}
+                      aria-label={`${fullLabel} gain`}
+                      onPointerDown={() => resumeAudioContext()}
+                      onInput={(e) => setBandGain(index, parseFloat((e.target as HTMLInputElement).value))}
                       onChange={(e) => setBandGain(index, parseFloat(e.target.value))}
-                      className="h-28 w-1.5 appearance-none rounded-full bg-quaternary accent-key cursor-pointer [writing-mode:vertical-lr] [direction:rtl]"
+                      className="h-28 w-7 touch-none appearance-none rounded-full bg-transparent accent-key cursor-pointer [writing-mode:vertical-lr] [direction:rtl]"
                     />
                   </div>
 
@@ -429,11 +433,17 @@ export function EqualizerModal({ open, onClose }: EqualizerModalProps) {
                 max="12"
                 step="1"
                 value={bassBoostEnabled ? bassBoost : 0}
+                aria-label="Sub-Bass Booster gain"
+                onPointerDown={() => resumeAudioContext()}
+                onInput={(e) => {
+                  const val = parseInt((e.target as HTMLInputElement).value, 10);
+                  setBassBoost(val);
+                }}
                 onChange={(e) => {
                   const val = parseInt(e.target.value, 10);
                   setBassBoost(val);
                 }}
-                className="w-full h-1.5 appearance-none rounded-full bg-quaternary accent-key cursor-pointer"
+                className="w-full h-2 touch-none appearance-none rounded-full bg-quaternary accent-key cursor-pointer"
               />
               <button
                 onClick={() => setBassBoostEnabled(!bassBoostEnabled)}

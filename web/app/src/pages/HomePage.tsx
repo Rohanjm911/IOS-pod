@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { PageHeader } from '@/components/PageHeader';
-import { Shelves, TrackShelf } from '@/components/music/ShelfView';
+import { Shelves } from '@/components/music/ShelfView';
 import { LoadError, LoadMoreError } from '@/components/music/States';
 import { useHome, useLibrary, useYouTubeReady } from '@/data/music/queries';
 import { useLocalLibrary } from '@/data/music/localLibrary';
@@ -12,7 +12,6 @@ import { ShelfSkeleton } from '@/skeletons/ShelfSkeleton';
 
 const RECENT_TITLE = 'Recently Played';
 const RECENT_LIMIT = 20;
-const RECENT_SOURCE = { title: RECENT_TITLE, type: 'home' as const };
 
 /**
  * The account's listening history, newest first, one row per song
@@ -33,12 +32,14 @@ export default function HomePage() {
   const { missing } = useYouTubeReady();
   const home = useHome();
   const recent = useRecentlyPlayed();
+  const favorites = useLocalLibrary((s) => s.favorites);
+  const playlists = useLocalLibrary((s) => s.playlists);
   const sentinel = useRef<HTMLDivElement>(null);
 
   const recentSeed = recent[0]?.videoId ?? 'none';
   const multiSource = useQuery({
-    queryKey: ['home', 'multi-source', recentSeed],
-    queryFn: () => buildMultiSourceHomeShelves(recent),
+    queryKey: ['home', 'multi-source', recentSeed, favorites.length, playlists.length],
+    queryFn: () => buildMultiSourceHomeShelves({ recentTracks: recent, favorites, playlists }),
     staleTime: 5 * 60_000,
   });
 
@@ -65,7 +66,6 @@ export default function HomePage() {
     return (
       <>
         <PageHeader title="Home" />
-        {recent.length > 0 && <TrackShelf title={RECENT_TITLE} to="/library/recent" tracks={recent} source={RECENT_SOURCE} />}
         <Shelves shelves={externalShelves} />
       </>
     );
@@ -82,10 +82,10 @@ export default function HomePage() {
   }
   if (!home.data && externalShelves.length === 0) return <HomeSkeleton />;
 
-  // YouTube's feed can carry its own, older Recently Played; the history wins, as on the phone.
+  // Keep Recently Played off the Home screen (still available in Library).
   const ytShelves = (home.data?.pages ?? [])
     .flatMap((page) => page.data)
-    .filter((shelf) => !(recent.length > 0 && shelf.title.trim().toLowerCase() === RECENT_TITLE.toLowerCase()));
+    .filter((shelf) => shelf.title.trim().toLowerCase() !== RECENT_TITLE.toLowerCase());
 
   // Interleave multi-source Audius/iTunes recommendations with YouTube Music shelves for variety.
   const mergedShelves: Shelf[] = [];
@@ -101,7 +101,6 @@ export default function HomePage() {
   return (
     <>
       <PageHeader title="Home" />
-      {recent.length > 0 && <TrackShelf title={RECENT_TITLE} to="/library/recent" tracks={recent} source={RECENT_SOURCE} />}
       <Shelves shelves={mergedShelves} />
       <div ref={sentinel} />
       {home.isFetchingNextPage && <ShelfSkeleton kind="square" />}

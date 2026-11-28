@@ -155,6 +155,7 @@ export function FullScreenPlayer() {
   const openedAt = useRef(pathname);
   const playing = usePlayer((s) => s.status === 'playing' || s.status === 'buffering');
   const setFullScreen = useUi((s) => s.setFullScreen);
+  const uiMode = useUi((s) => s.uiMode);
   const visualizerMode = useUi((s) => s.visualizerMode);
   const cycleVisualizerMode = useUi((s) => s.cycleVisualizerMode);
   const setSleepTimerOpen = useUi((s) => s.setSleepTimerOpen);
@@ -249,6 +250,19 @@ export function FullScreenPlayer() {
   const hidden = theater && playing && idle ? ' pointer-events-none opacity-0' : '';
   const corner = `${chrome} transition-[background-color,color,opacity] duration-300${hidden}`;
 
+  const themeCardClass =
+    uiMode === 'secondary'
+      ? ' rounded-[14px] border-[3px] border-[var(--brutal-ink,#0b0b0d)] bg-[var(--brutal-surface,#ffffff)] p-5 shadow-[8px_8px_0_var(--brutal-ink,#0b0b0d)]'
+      : uiMode === 'editorial'
+        ? ' rounded-[4px] border-2 border-[var(--ed-ink,#000000)] bg-[var(--ed-paper,#ffffff)] p-5 shadow-[0_14px_36px_rgba(0,0,0,0.12)]'
+        : uiMode === 'bento'
+          ? ' rounded-[28px] bg-[var(--bento-tile,#ffffff)] p-5 shadow-[0_14px_36px_rgba(0,0,0,0.08)]'
+          : uiMode === 'retro'
+            ? ' rounded-[18px] border border-[var(--retro-bevel,#9ca3af)] bg-[var(--retro-lcd,#edf1f5)] p-5 shadow-[inset_0_2px_6px_rgba(0,0,0,0.14),0_8px_24px_rgba(0,0,0,0.18)]'
+            : uiMode === 'anime'
+              ? ' rounded-[22px] border-2 border-[var(--anime-border,#18122b)] bg-[var(--anime-card,#ffffff)] p-5 shadow-[6px_6px_0_var(--anime-pink,#ff3e8a),0_14px_32px_rgba(0,184,230,0.18)]'
+              : ' rounded-[26px] border border-white/15 bg-black/25 p-5 backdrop-blur-2xl shadow-[0_24px_64px_rgba(0,0,0,0.45)]';
+
   return (
     <div
       // Over everything but menus and dialogs, which portal above it. The on-dark colours come from tokens.css (data-full-screen).
@@ -258,6 +272,7 @@ export function FullScreenPlayer() {
       aria-modal="true"
       aria-label="Now Playing"
       data-full-screen
+      data-ui-mode={uiMode}
       data-paused={!playing || undefined}
       onPointerMove={wake}
       onPointerDown={wake}
@@ -369,16 +384,51 @@ export function FullScreenPlayer() {
           className={
             theater
               ? 'flex w-[min(720px,100%)] min-w-0 flex-col'
-              : `fullscreen-player-col flex w-(--art) min-w-0 flex-col${column ? ' max-md:order-2 max-md:w-full' : ''}${
-                  column && fullScreenConfig.layout === 'flipped' ? ' md:order-2' : ''
-                }${
-                  fullScreenConfig.layout === 'centered'
-                    ? ' rounded-[26px] border border-white/15 bg-black/30 p-6 pb-5 max-md:p-5 max-md:pb-4 backdrop-blur-2xl shadow-[0_24px_64px_rgba(0,0,0,0.45)]'
-                    : ''
-                }`
+              : `fullscreen-player-col flex w-(--art) min-w-0 flex-col${themeCardClass}${
+                  column ? ' max-md:order-2 max-md:w-full' : ''
+                }${column && fullScreenConfig.layout === 'flipped' ? ' md:order-2' : ''}`
           }
           aria-label="Player"
         >
+          {!theater && uiMode !== 'primary' && (
+            <div className="mb-3 flex items-center justify-between gap-2 max-md:mb-2">
+              {uiMode === 'editorial' && (
+                <span className="text-[10px] font-bold tracking-[0.2em] text-[#DC2626] uppercase">
+                  Now Playing &bull; Feature
+                </span>
+              )}
+              {uiMode === 'secondary' && (
+                <span
+                  className="rounded-[4px] border-2 px-2 py-0.5 text-[10px] font-black tracking-[0.14em] uppercase"
+                  style={{
+                    backgroundColor: 'var(--brutal-accent, #d9ff00)',
+                    color: 'var(--brutal-accent-ink, #0b0b0d)',
+                    borderColor: 'var(--brutal-ink, #0b0b0d)',
+                  }}
+                >
+                  Now Playing // Raw
+                </span>
+              )}
+              {uiMode === 'bento' && (
+                <span className="rounded-full bg-[#0066CC] px-2.5 py-0.5 text-[10px] font-semibold tracking-wider text-white uppercase">
+                  Bento Player
+                </span>
+              )}
+              {uiMode === 'retro' && (
+                <span
+                  className="w-full rounded-[6px] px-2.5 py-1 text-center text-[10px] font-bold tracking-[0.16em] text-white uppercase shadow-xs"
+                  style={{ background: 'linear-gradient(180deg, #5BB0FF, #146EF5)' }}
+                >
+                  iPod &bull; Now Playing
+                </span>
+              )}
+              {uiMode === 'anime' && (
+                <span className="rounded-full bg-gradient-to-r from-[#FF3E8A] to-[#7C3AED] px-2.5 py-0.5 text-[10px] font-extrabold tracking-[0.16em] text-white uppercase">
+                  再生中 &bull; Anime Stage
+                </span>
+              )}
+            </div>
+          )}
           <div className="fullscreen-header-row flex flex-col">
             {/* Shrinks a touch while paused, as Apple's does. Beside a column, stays visible as a compact square above the title on phones. */}
             <div
@@ -453,7 +503,13 @@ export function FullScreenPlayer() {
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <div className="flex min-w-0 items-center">
                   <PageLink
-                    className={`min-w-0 max-w-full self-start truncate type-[600_17px/22px] ${pageLink}`}
+                    className={`min-w-0 max-w-full self-start truncate type-[600_17px/22px] ${pageLink} ${
+                      uiMode === 'editorial'
+                        ? "font-['Playfair_Display',Georgia,serif] font-black text-[20px]"
+                        : uiMode === 'anime'
+                          ? "font-['M_PLUS_Rounded_1c','DM_Sans',sans-serif] font-extrabold"
+                          : ''
+                    }`}
                     href={albumHref(album?.id ?? null)}
                     resolve={() => albumPageFor(videoId, album, [title, artist].filter(Boolean).join(' '))}
                   >

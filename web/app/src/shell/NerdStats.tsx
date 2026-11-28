@@ -4,6 +4,7 @@ import type { AutoDJSnapshot } from '@/playback/automix';
 import type { analyzer as Analyzer } from '@/playback/automix/analysis/analyzer';
 import type { NowPlaying } from '@/state/player';
 import { usePlayer } from '@/state/player';
+import { useDacAudio } from '@/state/dacAudio';
 
 /**
  * Stats for nerds, under the artist in the full-screen player (the phone's
@@ -14,11 +15,28 @@ export function NerdStats() {
   const show = usePlayer((s) => s.showNerdStats);
   const nowPlaying = usePlayer((s) => s.nowPlaying);
   const automix = usePlayer((s) => s.automix);
+  const dacDirectMode = useDacAudio((s) => s.dacDirectMode);
+  const activeSampleRateHz = useDacAudio((s) => s.activeSampleRateHz);
+  const activeDeviceLabel = useDacAudio((s) => s.activeDeviceLabel);
+  const sinkId = useDacAudio((s) => s.sinkId);
   if (!show || !nowPlaying) return null;
+  const dacSummary =
+    dacDirectMode || sinkId !== 'default'
+      ? [
+          dacDirectMode ? 'DAC Direct' : 'DAC Out',
+          activeSampleRateHz ? `${+(activeSampleRateHz / 1000).toFixed(1)} kHz` : null,
+          sinkId !== 'default' ? activeDeviceLabel : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      : null;
   return (
     // The phone's shadow: free on the dark mesh, and what keeps it legible over a bright music video.
     <div className="mt-1 flex min-w-0 flex-col gap-px type-[500_11px/14px] tabular-nums [text-shadow:0_1px_4px_rgb(0_0_0/0.55)]">
-      <span className="truncate text-secondary">{describeStream(nowPlaying) ?? 'Measuring the stream…'}</span>
+      <span className="truncate text-secondary">
+        {describeStream(nowPlaying) ?? 'Measuring the stream…'}
+        {dacSummary ? ` · ${dacSummary}` : ''}
+      </span>
       {automix && <AutomixLine videoId={nowPlaying.videoId} />}
     </div>
   );
